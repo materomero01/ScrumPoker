@@ -1,62 +1,124 @@
 <!DOCTYPE html>
-<html>
+<html lang="es">
 <head>
-    <title>Minimal Planning Poker</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Poker Plan - Salas</title>
     <script src="/socket.io/socket.io.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
 </head>
-<body class="bg-slate-900 text-white font-sans">
-    <div class="max-w-4xl mx-auto p-8 text-center">
-        <h1 class="text-3xl font-bold mb-4">Sala: <span id="roomName">...</span></h1>
-        
-        <div class="flex justify-center gap-2 mb-8" id="deck">
-            </div>
+<body class="bg-slate-900 text-white min-h-screen flex flex-col">
 
-        <div class="bg-slate-800 p-6 rounded-xl shadow-xl">
-            <div id="players" class="flex flex-wrap justify-center gap-4 mb-6"></div>
-            
-            <div class="flex justify-center gap-4">
-                <button onclick="reveal()" class="bg-blue-600 hover:bg-blue-500 px-6 py-2 rounded font-bold">Revelar Cartas</button>
-                <button onclick="reset()" class="bg-red-600 hover:bg-red-500 px-6 py-2 rounded font-bold">Reiniciar</button>
+    <div id="login" class="fixed inset-0 bg-slate-900/95 z-50 flex items-center justify-center p-4">
+        <div class="bg-slate-800 p-8 rounded-3xl shadow-2xl w-full max-w-sm border border-slate-700">
+            <h2 class="text-3xl font-black mb-6 text-center text-blue-400 italic">POKER PLAN</h2>
+            <div class="space-y-4">
+                <input type="text" id="username" placeholder="Tu nombre" class="w-full p-4 rounded-xl bg-slate-700 border border-slate-600 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                <input type="text" id="room" placeholder="Nombre de la sala" class="w-full p-4 rounded-xl bg-slate-700 border border-slate-600 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                <button onclick="joinRoom()" class="w-full bg-blue-600 hover:bg-blue-500 p-4 rounded-xl font-bold text-lg transition-all shadow-lg shadow-blue-900/20">Entrar a Jugar</button>
             </div>
         </div>
     </div>
 
+    <main class="flex-grow container mx-auto px-4 py-8">
+        <div class="flex justify-between items-center mb-8">
+            <div>
+                <h1 class="text-xl font-bold text-blue-400">Sala: <span id="displayRoom" class="text-white">...</span></h1>
+                <p class="text-slate-400 text-sm">Jugando como: <span id="displayName" class="font-bold">...</span></p>
+            </div>
+            <div id="avgDisplay" class="hidden bg-blue-600 px-4 py-2 rounded-lg font-bold">
+                Promedio: <span id="avgValue">0</span>
+            </div>
+        </div>
+
+        <div id="deck" class="flex flex-wrap justify-center gap-3 mb-12"></div>
+
+        <div class="bg-slate-800/50 border border-slate-700 p-8 rounded-[3rem] min-h-[300px] flex flex-col justify-between">
+            <div id="playersGrid" class="flex flex-wrap justify-center gap-8">
+                </div>
+
+            <div class="mt-12 flex justify-center gap-4">
+                <button onclick="reveal()" class="bg-green-600 hover:bg-green-500 px-10 py-3 rounded-full font-bold transition-all transform hover:scale-105 active:scale-95">Revelar Cartas</button>
+                <button onclick="reset()" class="bg-slate-700 hover:bg-slate-600 px-10 py-3 rounded-full font-bold transition-all transform hover:scale-105 active:scale-95">Nueva Partida</button>
+            </div>
+        </div>
+    </main>
+
     <script>
         const socket = io();
-        // Obtener nombre de sala de la URL (ej: ?room=equipo-alfa) o pedir uno
-        const urlParams = new URLSearchParams(window.location.search);
-        const roomId = urlParams.get('room') || 'general';
-        document.getElementById('roomName').innerText = roomId;
+        let currentRoom = "";
+        const deckValues = [0, 1, 2, 3, 5, 8, 13, 21, '?'];
 
-        socket.emit('join_room', roomId);
+        function joinRoom() {
+            const user = document.getElementById('username').value;
+            const room = document.getElementById('room').value || "general";
+            if(!user) return alert("¡Danos tu nombre!");
+            
+            currentRoom = room;
+            document.getElementById('displayRoom').innerText = room;
+            document.getElementById('displayName').innerText = user;
+            document.getElementById('login').classList.add('hidden');
 
-        const deck = [1, 2, 3, 5, 8, 13, '?'];
-        const deckDiv = document.getElementById('deck');
-        deck.forEach(val => {
+            socket.emit('join_room', { roomId: room, username: user });
+        }
+
+        // Renderizar el Deck
+        const deckContainer = document.getElementById('deck');
+        deckValues.forEach(val => {
             const btn = document.createElement('button');
             btn.innerText = val;
-            btn.className = "bg-white text-slate-900 w-12 h-16 rounded-lg font-bold text-xl hover:-translate-y-2 transition-transform";
-            btn.onclick = () => socket.emit('cast_vote', { roomId, value: val });
-            deckDiv.appendChild(btn);
+            btn.className = "w-14 h-20 bg-white text-slate-900 rounded-xl font-black text-xl hover:-translate-y-3 transition-all shadow-xl hover:bg-blue-50 active:scale-90 border-b-4 border-slate-300";
+            btn.onclick = () => socket.emit('cast_vote', { roomId: currentRoom, value: val });
+            deckContainer.appendChild(btn);
         });
 
         socket.on('update_state', (state) => {
-            const playersDiv = document.getElementById('players');
-            playersDiv.innerHTML = '';
-            
-            Object.entries(state.votes).forEach(([id, val]) => {
+            const grid = document.getElementById('playersGrid');
+            grid.innerHTML = "";
+            let sum = 0;
+            let count = 0;
+
+            Object.values(state.votes).forEach(player => {
+                const cardWrap = document.createElement('div');
+                cardWrap.className = "flex flex-col items-center gap-3";
+
                 const card = document.createElement('div');
-                card.className = "w-16 h-20 bg-slate-700 rounded-lg flex items-center justify-center border-2 " + 
-                                 (state.visible ? "border-blue-400" : "border-transparent");
-                // Si no es visible, mostramos un check o "S" (si ya votó)
-                card.innerText = state.visible ? val : "✅";
-                playersDiv.appendChild(card);
+                let cardClass = "w-16 h-24 rounded-2xl flex items-center justify-center text-2xl font-black transition-all duration-500 ";
+
+                if (state.visible) {
+                    cardClass += "bg-white text-blue-600 border-4 border-blue-400 rotate-0";
+                    card.innerText = player.value !== null ? player.value : "-";
+                    if(typeof player.value === 'number') { sum += player.value; count++; }
+                } else {
+                    if (player.value !== null) {
+                        cardClass += "bg-blue-600 text-white shadow-lg shadow-blue-500/50 -translate-y-2";
+                        card.innerText = "✓";
+                    } else {
+                        cardClass += "bg-slate-700 text-slate-500 border-2 border-dashed border-slate-600";
+                        card.innerText = "";
+                    }
+                }
+
+                card.className = cardClass;
+                cardWrap.innerHTML = `
+                    <div class="${cardClass}">${card.innerText}</div>
+                    <span class="text-xs font-bold uppercase tracking-wider text-slate-400">${player.name}</span>
+                `;
+                grid.appendChild(cardWrap);
             });
+
+            // Promedio
+            const avgDiv = document.getElementById('avgDisplay');
+            if (state.visible && count > 0) {
+                avgDiv.classList.remove('hidden');
+                document.getElementById('avgValue').innerText = (sum / count).toFixed(1);
+            } else {
+                avgDiv.classList.add('hidden');
+            }
         });
 
-        function reveal() { socket.emit('reveal_votes', roomId); }
-        function reset() { socket.emit('reset_game', roomId); }
+        function reveal() { socket.emit('reveal_votes', currentRoom); }
+        function reset() { socket.emit('reset_game', currentRoom); }
     </script>
 </body>
 </html>
