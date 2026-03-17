@@ -14,17 +14,19 @@ io.on('connection', (socket) => {
         socket.join(roomId);
         socket.currentRoom = roomId;
         if (!rooms[roomId]) {
-            rooms[roomId] = { 
-                votes: {}, 
-                visible: false, 
-                taskName: "Tarea Inicial", 
-                history: [] // Guardará {task, results: {name: vote}}
-            };
+            rooms[roomId] = { votes: {}, visible: false, taskName: "Tarea 1", history: [] };
         }
-        rooms[roomId].votes[socket.id] = { name: username, value: null, emojiCount: 0 };
+        rooms[roomId].votes[socket.id] = { name: username, value: null };
         io.to(roomId).emit('update_state', rooms[roomId]);
     });
 
+    socket.on('send_emoji', ({ roomId, toSocketId, fromSocketId, emoji, fromPos }) => {
+        // Enviamos el emoji a todos para que vean la animación, 
+        // pero incluimos quién es el objetivo
+        io.to(roomId).emit('animate_emoji', { toSocketId, fromPos, emoji });
+    });
+
+    // ... (El resto de funciones: cast_vote, reveal_votes, reset_game, update_task permanecen igual que el anterior)
     socket.on('cast_vote', ({ roomId, value }) => {
         if (rooms[roomId]) {
             rooms[roomId].votes[socket.id].value = value;
@@ -35,15 +37,9 @@ io.on('connection', (socket) => {
     socket.on('reveal_votes', (roomId) => {
         if (rooms[roomId]) {
             rooms[roomId].visible = true;
-            // Guardar en el historial al revelar
             const roundResults = {};
-            Object.values(rooms[roomId].votes).forEach(p => {
-                roundResults[p.name] = p.value;
-            });
-            rooms[roomId].history.push({
-                task: rooms[roomId].taskName,
-                results: roundResults
-            });
+            Object.values(rooms[roomId].votes).forEach(p => { roundResults[p.name] = p.value; });
+            rooms[roomId].history.push({ task: rooms[roomId].taskName, results: roundResults });
             io.to(roomId).emit('update_state', rooms[roomId]);
         }
     });
@@ -56,15 +52,8 @@ io.on('connection', (socket) => {
         }
     });
 
-    socket.on('send_emoji', ({ roomId, toSocketId, emoji }) => {
-        io.to(toSocketId).emit('receive_emoji', { emoji });
-    });
-
     socket.on('update_task', ({ roomId, taskName }) => {
-        if (rooms[roomId]) {
-            rooms[roomId].taskName = taskName;
-            io.to(roomId).emit('update_state', rooms[roomId]);
-        }
+        if (rooms[roomId]) { rooms[roomId].taskName = taskName; io.to(roomId).emit('update_state', rooms[roomId]); }
     });
 
     socket.on('disconnect', () => {
