@@ -20,15 +20,8 @@ io.on('connection', (socket) => {
         io.to(roomId).emit('update_state', rooms[roomId]);
     });
 
-    socket.on('send_emoji', ({ roomId, toSocketId, fromSocketId, emoji, fromPos }) => {
-        // Enviamos el emoji a todos para que vean la animación, 
-        // pero incluimos quién es el objetivo
-        io.to(roomId).emit('animate_emoji', { toSocketId, fromPos, emoji });
-    });
-
-    // ... (El resto de funciones: cast_vote, reveal_votes, reset_game, update_task permanecen igual que el anterior)
     socket.on('cast_vote', ({ roomId, value }) => {
-        if (rooms[roomId]) {
+        if (rooms[roomId] && rooms[roomId].votes[socket.id]) {
             rooms[roomId].votes[socket.id].value = value;
             io.to(roomId).emit('update_state', rooms[roomId]);
         }
@@ -53,7 +46,14 @@ io.on('connection', (socket) => {
     });
 
     socket.on('update_task', ({ roomId, taskName }) => {
-        if (rooms[roomId]) { rooms[roomId].taskName = taskName; io.to(roomId).emit('update_state', rooms[roomId]); }
+        if (rooms[roomId]) {
+            rooms[roomId].taskName = taskName;
+            io.to(roomId).emit('update_state', rooms[roomId]);
+        }
+    });
+
+    socket.on('send_emoji', ({ roomId, toSocketId, emoji, fromPos }) => {
+        io.to(roomId).emit('animate_emoji', { toSocketId, fromPos, emoji });
     });
 
     socket.on('disconnect', () => {
@@ -66,4 +66,4 @@ io.on('connection', (socket) => {
     });
 });
 
-server.listen(process.env.PORT || 3000);
+server.listen(process.env.PORT || 3000, () => console.log("Online!"));
