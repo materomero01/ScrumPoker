@@ -1,7 +1,7 @@
 {
-  "name": "clon-planning-poker",
-  "version": "1.0.0",
-  "description": "Sistema de votación ágil con salas y nombres",
+  "name": "poker-plan-circular-pro",
+  "version": "1.1.0",
+  "description": "Planning Poker circular con emojis y zumbido",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"
