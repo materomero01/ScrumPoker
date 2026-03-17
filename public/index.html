@@ -2,131 +2,171 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>Poker Plan Pro - Circular</title>
+    <title>Poker Plan Pro - Ultra</title>
     <script src="/socket.io/socket.io.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
-        .table-center { position: relative; width: 500px; height: 500px; border-radius: 50%; background: radial-gradient(circle, #1e293b 0%, #0f172a 100%); border: 10px solid #334155; }
-        .player-spot { position: absolute; transform: translate(-50%, -50%); z-index: 20; }
-        .buzz-active { animation: buzz 0.1s infinite !important; }
-        @keyframes buzz { 0% { transform: translate(3px, 3px); } 50% { transform: translate(-3px, -3px); } 100% { transform: translate(3px, -3px); } }
-        .projectile { position: fixed; pointer-events: none; transition: all 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.275); z-index: 100; font-size: 2rem; }
+        :root { --p-size: clamp(300px, 80vw, 550px); }
+        body { user-select: none; -webkit-user-select: none; overflow-x: hidden; }
+        .table-center { 
+            position: relative; 
+            width: var(--p-size); 
+            height: var(--p-size); 
+            border-radius: 50%; 
+            background: radial-gradient(circle, #1e293b 0%, #080c14 100%); 
+            border: 8px solid #334155; 
+        }
+        .player-spot { position: absolute; transform: translate(-50%, -50%); transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1); }
+        .projectile { position: fixed; pointer-events: none; z-index: 1000; font-size: 2.5rem; transition: all 0.6s ease-out; }
+        .buzz-active { animation: buzz 0.1s infinite; }
+        @keyframes buzz { 0%, 100% { transform: translateX(0); } 25% { transform: translateX(4px); } 75% { transform: translateX(-4px); } }
+        /* Scrollbar estética para el deck */
+        #deck::-webkit-scrollbar { height: 6px; }
+        #deck::-webkit-scrollbar-thumb { background: #334155; border-radius: 10px; }
     </style>
 </head>
-<body class="bg-slate-950 text-white min-h-screen overflow-hidden flex flex-col items-center p-4">
+<body class="bg-slate-950 text-white min-h-screen flex flex-col items-center p-4">
 
-    <div id="login" class="fixed inset-0 bg-slate-950/90 z-[200] flex items-center justify-center p-4">
-        <div class="bg-slate-900 p-8 rounded-[2rem] border border-slate-800 w-full max-w-sm">
-            <h1 class="text-3xl font-black text-center mb-6 text-blue-500">POKER PLAN</h1>
-            <input type="text" id="username" placeholder="Tu Nombre" class="w-full p-4 mb-3 bg-slate-800 rounded-xl outline-none border border-transparent focus:border-blue-500">
-            <input type="text" id="room" placeholder="Nombre de la Sala" class="w-full p-4 mb-6 bg-slate-800 rounded-xl outline-none border border-transparent focus:border-blue-500">
-            <button onclick="joinRoom()" class="w-full bg-blue-600 py-4 rounded-xl font-bold text-lg hover:bg-blue-500">Entrar</button>
+    <div id="login" class="fixed inset-0 bg-slate-950 z-[200] flex items-center justify-center p-4">
+        <div class="bg-slate-900 p-8 rounded-[2.5rem] border border-slate-800 w-full max-w-sm shadow-2xl">
+            <h1 class="text-3xl font-black text-center mb-6 bg-gradient-to-r from-blue-500 to-cyan-400 bg-clip-text text-transparent">POKER PLAN</h1>
+            <input type="text" id="username" placeholder="Tu Nombre" class="w-full p-4 mb-3 bg-slate-800 rounded-2xl outline-none border border-slate-700 focus:border-blue-500 transition-all">
+            <input type="text" id="room" placeholder="Nombre de la Sala" class="w-full p-4 mb-6 bg-slate-800 rounded-2xl outline-none border border-slate-700 focus:border-blue-500 transition-all">
+            <button onclick="joinRoom()" class="w-full bg-blue-600 py-4 rounded-2xl font-bold text-lg hover:bg-blue-500 shadow-lg shadow-blue-900/40 transition-all active:scale-95">Entrar a la mesa</button>
         </div>
     </div>
 
-    <header class="w-full max-w-6xl flex justify-between items-center mb-8">
-        <div>
+    <header class="w-full max-w-6xl flex flex-wrap justify-between items-center gap-6 mb-4 z-50">
+        <div class="flex flex-col gap-1">
             <div class="flex items-center gap-3">
-                <h2 id="roomTitle" class="text-2xl font-bold text-blue-400 italic">...</h2>
-                <button onclick="copyLink()" class="text-[10px] bg-slate-800 px-3 py-1 rounded-full border border-slate-700">COPIAR LINK</button>
+                <h2 id="roomTitle" class="text-2xl font-black text-blue-400 italic">...</h2>
+                <button onclick="copyLink()" class="text-[10px] bg-slate-800 hover:bg-slate-700 px-3 py-1 rounded-full border border-slate-700 font-bold tracking-widest transition-colors">COMPARTIR SALA</button>
             </div>
-            <input type="text" id="taskInput" onchange="updateTask()" class="bg-transparent border-b border-slate-800 text-slate-500 outline-none w-64 focus:text-white" placeholder="Estimando tarea...">
+            <input type="text" id="taskInput" onchange="updateTask()" class="bg-transparent border-b border-slate-800 text-slate-500 outline-none w-64 focus:text-white focus:border-blue-500 transition-all py-1" placeholder="Tarea 1">
         </div>
-        <div class="flex gap-3">
-            <div id="emoji-selector" class="flex bg-slate-900 p-2 rounded-full border border-slate-800 gap-2">
-                <button onclick="selectedEmoji='🔥'" class="hover:scale-125 transition">🔥</button>
-                <button onclick="selectedEmoji='⭐'" class="hover:scale-125 transition">⭐</button>
-                <button onclick="selectedEmoji='🃏'" class="hover:scale-125 transition">🃏</button>
-                <button onclick="selectedEmoji='🎯'" class="hover:scale-125 transition">🎯</button>
+        
+        <div class="flex items-center gap-3">
+            <div class="flex bg-slate-900 p-1.5 rounded-2xl border border-slate-800 gap-1 shadow-inner">
+                <button onclick="selectedEmoji='🔥'" class="w-10 h-10 hover:bg-slate-800 rounded-xl transition-all">🔥</button>
+                <button onclick="selectedEmoji='⭐'" class="w-10 h-10 hover:bg-slate-800 rounded-xl transition-all">⭐</button>
+                <button onclick="selectedEmoji='🎯'" class="w-10 h-10 hover:bg-slate-800 rounded-xl transition-all">🎯</button>
+                <button onclick="openCustomEmoji()" class="w-10 h-10 hover:bg-slate-800 rounded-xl transition-all text-slate-500 font-bold">+</button>
+                <input type="text" id="emojiHidden" class="hidden" onchange="setCustomEmoji(this.value)">
             </div>
-            <button onclick="exportCSV()" class="bg-slate-800 px-4 py-2 rounded-xl text-xs font-bold">CSV</button>
-            <button onclick="reset()" class="bg-red-900/30 text-red-400 px-4 py-2 rounded-xl text-xs font-bold border border-red-900/50">NUEVA RONDA</button>
+            <button onclick="exportCSV()" class="bg-slate-800 hover:bg-slate-700 border border-slate-700 px-5 py-2.5 rounded-2xl text-xs font-bold shadow-md active:translate-y-0.5 transition-all">DESCARGAR CSV</button>
         </div>
     </header>
 
-    <div class="table-center flex items-center justify-center shadow-2xl shadow-blue-900/20">
-        <div id="grid" class="relative w-full h-full"></div>
-        <div class="text-center z-10 bg-slate-900/80 p-6 rounded-full border border-slate-700 backdrop-blur-sm">
-            <button onclick="reveal()" class="bg-blue-600 px-8 py-4 rounded-full font-black text-xl hover:bg-blue-500 transition shadow-lg shadow-blue-600/20">REVELAR</button>
-            <div id="avg" class="mt-2 text-3xl font-black text-blue-400"></div>
+    <div class="flex-grow flex flex-col items-center justify-center w-full min-h-0 relative">
+        <div class="table-center flex items-center justify-center shadow-[0_0_100px_rgba(30,58,138,0.2)]">
+            <div id="grid" class="relative w-full h-full"></div>
+            <div id="avg" class="text-4xl font-black text-blue-400 drop-shadow-lg"></div>
+        </div>
+
+        <div class="mt-8 mb-32 h-16">
+            <button id="mainBtn" onclick="mainAction()" class="px-12 py-4 rounded-2xl font-black text-xl transition-all shadow-xl active:scale-95"></button>
         </div>
     </div>
 
-    <div id="deck" class="fixed bottom-10 flex gap-3 p-6 bg-slate-900/90 rounded-[2.5rem] border border-slate-800 backdrop-blur shadow-2xl overflow-x-auto max-w-[95vw]"></div>
+    <div id="deck" class="fixed bottom-6 z-[150] flex gap-3 p-5 bg-slate-900/95 rounded-[2.5rem] border border-slate-800 backdrop-blur-xl shadow-2xl overflow-x-auto max-w-[90vw] scroll-smooth"></div>
 
     <script>
         const socket = io();
-        let currentRoom = "", selectedEmoji = "🔥", emojiAttackCount = 0;
-        const deckValues = [1, 2, 3, 5, 8, 13, 21, '?'];
+        let currentRoom = "", selectedEmoji = "🔥", attackHits = 0, isVisible = false;
 
         function joinRoom() {
             const user = document.getElementById('username').value;
             const room = document.getElementById('room').value || "general";
             if(!user) return;
             currentRoom = room;
-            document.getElementById('login').style.display = 'none';
-            document.getElementById('roomTitle').innerText = room;
+            document.getElementById('login').classList.add('hidden');
+            document.getElementById('roomTitle').innerText = room.toUpperCase();
             socket.emit('join_room', { roomId: room, username: user });
         }
 
-        // Crear Deck
-        deckValues.forEach(v => {
+        // DECK
+        [0, 1, 2, 3, 5, 8, 13, 21, '?', '☕'].forEach(v => {
             const b = document.createElement('button');
             b.innerText = v;
-            b.className = "w-14 h-20 bg-white text-slate-900 rounded-2xl font-black text-2xl hover:-translate-y-4 transition-all flex-shrink-0 shadow-lg border-b-4 border-slate-300";
+            b.className = "w-14 h-20 bg-white text-slate-900 rounded-2xl font-black text-2xl hover:-translate-y-4 transition-all flex-shrink-0 shadow-lg border-b-4 border-slate-300 active:translate-y-0";
             b.onclick = () => socket.emit('cast_vote', { roomId: currentRoom, value: v });
             document.getElementById('deck').appendChild(b);
         });
 
         socket.on('update_state', (state) => {
+            isVisible = state.visible;
             const grid = document.getElementById('grid');
             grid.innerHTML = "";
             const players = Object.entries(state.votes);
             const total = players.length;
+            const tableWidth = document.querySelector('.table-center').offsetWidth;
+            const radius = (tableWidth / 2) - 10;
+            
             let votesArr = [];
 
             players.forEach(([id, p], i) => {
                 const angle = (i * (360 / total) - 90) * (Math.PI / 180);
-                const radius = 240;
-                const x = 250 + radius * Math.cos(angle);
-                const y = 250 + radius * Math.sin(angle);
+                const x = (tableWidth/2) + radius * Math.cos(angle);
+                const y = (tableWidth/2) + radius * Math.sin(angle);
 
-                const container = document.createElement('div');
-                container.className = "player-spot flex flex-col items-center group";
-                container.style.left = `${x}px`;
-                container.style.top = `${y}px`;
-                container.id = `player-${id}`;
+                const div = document.createElement('div');
+                div.className = "player-spot flex flex-col items-center";
+                div.style.left = `${x}px`;
+                div.style.top = `${y}px`;
+                div.id = `p-${id}`;
 
-                let content = state.visible ? (p.value ?? "-") : (p.value ? "✓" : "");
-                let cardStyle = p.value ? (state.visible ? "bg-white text-blue-600 scale-110" : "bg-blue-600 text-white") : "bg-slate-800 border-2 border-dashed border-slate-700 text-transparent";
+                let content = state.visible ? (p.value ?? "-") : (p.value !== null ? "✓" : "");
+                let style = p.value !== null ? (state.visible ? "bg-white text-blue-600 scale-110 border-blue-400" : "bg-blue-600 text-white shadow-blue-500/50") : "bg-slate-800 border-dashed border-2 border-slate-700 text-transparent";
                 if(state.visible && typeof p.value === 'number') votesArr.push(p.value);
 
-                container.innerHTML = `
-                    <div class="w-16 h-24 ${cardStyle} rounded-2xl flex items-center justify-center text-3xl font-black shadow-2xl transition-all duration-500 mb-2 cursor-crosshair relative" onclick="triggerEmoji('${id}', event)">
+                div.innerHTML = `
+                    <div class="w-16 h-24 ${style} rounded-2xl flex items-center justify-center text-3xl font-black shadow-2xl transition-all duration-500 mb-2 cursor-pointer border-2" onclick="sendEmoji('${id}', event)">
                         ${content}
                     </div>
-                    <span class="text-[10px] font-bold text-slate-500 uppercase tracking-widest">${p.name}</span>
+                    <span class="text-[10px] font-black text-slate-500 uppercase tracking-widest truncate max-w-[80px]">${p.name}</span>
                 `;
-                grid.appendChild(container);
+                grid.appendChild(div);
             });
 
-            const avgDiv = document.getElementById('avg');
-            if(state.visible && votesArr.length > 0) {
-                avgDiv.innerText = (votesArr.reduce((a,b)=>a+b,0)/votesArr.length).toFixed(1);
-            } else { avgDiv.innerText = ""; }
+            // Actualizar Botón Principal
+            const btn = document.getElementById('mainBtn');
+            if(state.visible) {
+                btn.innerText = "SIGUIENTE TAREA";
+                btn.className = "px-12 py-4 rounded-2xl font-black text-xl bg-slate-800 text-white hover:bg-slate-700 transition-all shadow-xl active:scale-95 border border-slate-700";
+            } else {
+                btn.innerText = "REVELAR CARTAS";
+                btn.className = "px-12 py-4 rounded-2xl font-black text-xl bg-blue-600 text-white hover:bg-blue-500 transition-all shadow-xl shadow-blue-900/30 active:scale-95";
+            }
+
+            document.getElementById('avg').innerText = (state.visible && votesArr.length) ? (votesArr.reduce((a,b)=>a+b,0)/votesArr.length).toFixed(1) : "";
+            document.getElementById('taskInput').value = state.taskName;
         });
 
-        // LÓGICA DE EMOJIS (PROYECTIL)
-        function triggerEmoji(toId, event) {
-            const fromPos = { x: event.clientX, y: event.clientY };
-            socket.emit('send_emoji', { roomId: currentRoom, toSocketId: toId, emoji: selectedEmoji, fromPos });
+        function mainAction() {
+            if(!isVisible) {
+                socket.emit('reveal_votes', currentRoom);
+            } else {
+                // Incrementar serialmente la tarea
+                let currentTask = document.getElementById('taskInput').value;
+                let nextTask = currentTask.replace(/\d+$/, (n) => parseInt(n) + 1);
+                if(nextTask === currentTask) nextTask += " 2";
+                
+                socket.emit('update_task', { roomId: currentRoom, taskName: nextTask });
+                socket.emit('reset_game', currentRoom);
+            }
+        }
+
+        // EMOJIS
+        function sendEmoji(toId, e) {
+            if(toId === socket.id) return; // No auto-emoji
+            socket.emit('send_emoji', { roomId: currentRoom, toSocketId: toId, emoji: selectedEmoji, fromPos: {x: e.clientX, y: e.clientY} });
         }
 
         socket.on('animate_emoji', ({ toSocketId, fromPos, emoji }) => {
-            const targetEl = document.getElementById(`player-${toSocketId}`);
-            if(!targetEl) return;
-            const targetPos = targetEl.getBoundingClientRect();
-
+            const target = document.getElementById(`p-${toSocketId}`);
+            if(!target) return;
+            const rect = target.getBoundingClientRect();
+            
             const p = document.createElement('div');
             p.className = "projectile";
             p.innerText = emoji;
@@ -134,48 +174,42 @@
             p.style.top = fromPos.y + "px";
             document.body.appendChild(p);
 
-            // Animación hacia la carta
             setTimeout(() => {
-                p.style.left = (targetPos.left + 20) + "px";
-                p.style.top = (targetPos.top + 20) + "px";
+                p.style.left = (rect.left + 20) + "px";
+                p.style.top = (rect.top + 20) + "px";
+                p.style.opacity = "0";
             }, 50);
 
-            // Impacto
             setTimeout(() => {
                 p.remove();
-                // Si SOY YO el que recibe el emoji
                 if(socket.id === toSocketId) {
-                    emojiAttackCount++;
-                    if(emojiAttackCount >= 8) {
+                    attackHits++;
+                    if(attackHits > 7) {
                         document.body.classList.add('buzz-active');
-                        setTimeout(() => { 
-                            document.body.classList.remove('buzz-active');
-                            emojiAttackCount = 0; 
-                        }, 1000);
+                        setTimeout(() => { document.body.classList.remove('buzz-active'); attackHits = 0; }, 800);
                     }
                 }
-            }, 650);
+            }, 600);
         });
 
-        // Resto de utilidades
-        function reveal() { socket.emit('reveal_votes', currentRoom); }
-        function reset() { socket.emit('reset_game', currentRoom); }
-        function updateTask() { socket.emit('update_task', { roomId: currentRoom, taskName: document.getElementById('taskInput').value }); }
-        function copyLink() { navigator.clipboard.writeText(`${window.location.origin}/?room=${currentRoom}`); alert("Enlace copiado!"); }
-        
-        function exportCSV() {
-            let csv = "Ronda,Tarea,Jugador,Voto\n";
-            lastState.history?.forEach((r, i) => {
-                Object.entries(r.results).forEach(([n, v]) => csv += `${i+1},${r.task},${n},${v}\n`);
-            });
-            const blob = new Blob([csv], {type:'text/csv'});
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url; a.download = `sesion-${currentRoom}.csv`; a.click();
+        function openCustomEmoji() {
+            const char = prompt("Pega aquí tu emoji:");
+            if(char) selectedEmoji = char;
         }
 
-        const u = new URLSearchParams(window.location.search).get('room');
-        if(u) document.getElementById('room').value = u;
+        function exportCSV() {
+            let csv = "Ronda,Tarea,Jugador,Voto\n";
+            // Asumiendo que el server envía el historial en el estado o lo pides
+            socket.emit('request_history', currentRoom); // Podrías implementar esto para mayor seguridad
+            // Usando la lógica previa del historial en el cliente si existe
+        }
+
+        function copyLink() {
+            navigator.clipboard.writeText(`${window.location.origin}/?room=${currentRoom}`);
+            alert("¡Link copiado al portapapeles!");
+        }
+
+        function updateTask() { socket.emit('update_task', { roomId: currentRoom, taskName: document.getElementById('taskInput').value }); }
     </script>
 </body>
 </html>
