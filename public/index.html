@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Minimal Planning Poker</title>
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-900 text-white font-sans">
+    <div class="max-w-4xl mx-auto p-8 text-center">
+        <h1 class="text-3xl font-bold mb-4">Sala: <span id="roomName">...</span></h1>
+        
+        <div class="flex justify-center gap-2 mb-8" id="deck">
+            </div>
+
+        <div class="bg-slate-800 p-6 rounded-xl shadow-xl">
+            <div id="players" class="flex flex-wrap justify-center gap-4 mb-6"></div>
+            
+            <div class="flex justify-center gap-4">
+                <button onclick="reveal()" class="bg-blue-600 hover:bg-blue-500 px-6 py-2 rounded font-bold">Revelar Cartas</button>
+                <button onclick="reset()" class="bg-red-600 hover:bg-red-500 px-6 py-2 rounded font-bold">Reiniciar</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const socket = io();
+        // Obtener nombre de sala de la URL (ej: ?room=equipo-alfa) o pedir uno
+        const urlParams = new URLSearchParams(window.location.search);
+        const roomId = urlParams.get('room') || 'general';
+        document.getElementById('roomName').innerText = roomId;
+
+        socket.emit('join_room', roomId);
+
+        const deck = [1, 2, 3, 5, 8, 13, '?'];
+        const deckDiv = document.getElementById('deck');
+        deck.forEach(val => {
+            const btn = document.createElement('button');
+            btn.innerText = val;
+            btn.className = "bg-white text-slate-900 w-12 h-16 rounded-lg font-bold text-xl hover:-translate-y-2 transition-transform";
+            btn.onclick = () => socket.emit('cast_vote', { roomId, value: val });
+            deckDiv.appendChild(btn);
+        });
+
+        socket.on('update_state', (state) => {
+            const playersDiv = document.getElementById('players');
+            playersDiv.innerHTML = '';
+            
+            Object.entries(state.votes).forEach(([id, val]) => {
+                const card = document.createElement('div');
+                card.className = "w-16 h-20 bg-slate-700 rounded-lg flex items-center justify-center border-2 " + 
+                                 (state.visible ? "border-blue-400" : "border-transparent");
+                // Si no es visible, mostramos un check o "S" (si ya votó)
+                card.innerText = state.visible ? val : "✅";
+                playersDiv.appendChild(card);
+            });
+        });
+
+        function reveal() { socket.emit('reveal_votes', roomId); }
+        function reset() { socket.emit('reset_game', roomId); }
+    </script>
+</body>
+</html>
