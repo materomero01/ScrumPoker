@@ -17,19 +17,12 @@ io.on('connection', (socket) => {
             rooms[roomId] = { 
                 votes: {}, 
                 visible: false, 
-                taskName: "Nueva Tarea", 
-                timer: null 
+                taskName: "Tarea Inicial", 
+                history: [] // Guardará {task, results: {name: vote}}
             };
         }
-        rooms[roomId].votes[socket.id] = { name: username, value: null };
+        rooms[roomId].votes[socket.id] = { name: username, value: null, emojiCount: 0 };
         io.to(roomId).emit('update_state', rooms[roomId]);
-    });
-
-    socket.on('update_task', ({ roomId, taskName }) => {
-        if (rooms[roomId]) {
-            rooms[roomId].taskName = taskName;
-            io.to(roomId).emit('update_state', rooms[roomId]);
-        }
     });
 
     socket.on('cast_vote', ({ roomId, value }) => {
@@ -42,6 +35,15 @@ io.on('connection', (socket) => {
     socket.on('reveal_votes', (roomId) => {
         if (rooms[roomId]) {
             rooms[roomId].visible = true;
+            // Guardar en el historial al revelar
+            const roundResults = {};
+            Object.values(rooms[roomId].votes).forEach(p => {
+                roundResults[p.name] = p.value;
+            });
+            rooms[roomId].history.push({
+                task: rooms[roomId].taskName,
+                results: roundResults
+            });
             io.to(roomId).emit('update_state', rooms[roomId]);
         }
     });
@@ -54,8 +56,15 @@ io.on('connection', (socket) => {
         }
     });
 
-    socket.on('start_timer', (roomId) => {
-        io.to(roomId).emit('timer_triggered', 60); // 60 segundos
+    socket.on('send_emoji', ({ roomId, toSocketId, emoji }) => {
+        io.to(toSocketId).emit('receive_emoji', { emoji });
+    });
+
+    socket.on('update_task', ({ roomId, taskName }) => {
+        if (rooms[roomId]) {
+            rooms[roomId].taskName = taskName;
+            io.to(roomId).emit('update_state', rooms[roomId]);
+        }
     });
 
     socket.on('disconnect', () => {
