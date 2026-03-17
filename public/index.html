@@ -3,122 +3,163 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Poker Plan - Salas</title>
+    <title>Poker Plan Pro</title>
     <script src="/socket.io/socket.io.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
 </head>
-<body class="bg-slate-900 text-white min-h-screen flex flex-col">
+<body class="bg-slate-950 text-white min-h-screen font-sans">
 
-    <div id="login" class="fixed inset-0 bg-slate-900/95 z-50 flex items-center justify-center p-4">
-        <div class="bg-slate-800 p-8 rounded-3xl shadow-2xl w-full max-w-sm border border-slate-700">
-            <h2 class="text-3xl font-black mb-6 text-center text-blue-400 italic">POKER PLAN</h2>
-            <div class="space-y-4">
-                <input type="text" id="username" placeholder="Tu nombre" class="w-full p-4 rounded-xl bg-slate-700 border border-slate-600 focus:outline-none focus:ring-2 focus:ring-blue-500">
-                <input type="text" id="room" placeholder="Nombre de la sala" class="w-full p-4 rounded-xl bg-slate-700 border border-slate-600 focus:outline-none focus:ring-2 focus:ring-blue-500">
-                <button onclick="joinRoom()" class="w-full bg-blue-600 hover:bg-blue-500 p-4 rounded-xl font-bold text-lg transition-all shadow-lg shadow-blue-900/20">Entrar a Jugar</button>
-            </div>
+    <div id="login" class="fixed inset-0 bg-slate-950 z-[100] flex items-center justify-center p-6">
+        <div class="bg-slate-900 p-10 rounded-[2.5rem] border border-slate-800 shadow-2xl w-full max-w-md">
+            <h1 class="text-4xl font-black text-center mb-8 bg-gradient-to-r from-blue-400 to-emerald-400 bg-clip-text text-transparent">POKER PLAN</h1>
+            <input type="text" id="username" placeholder="¿Cómo te llamas?" class="w-full p-4 mb-4 rounded-2xl bg-slate-800 border border-slate-700 focus:ring-2 focus:ring-blue-500 outline-none">
+            <input type="text" id="room" placeholder="Nombre de la sala (ej: sprint-3)" class="w-full p-4 mb-8 rounded-2xl bg-slate-800 border border-slate-700 focus:ring-2 focus:ring-blue-500 outline-none">
+            <button onclick="joinRoom()" class="w-full bg-blue-600 hover:bg-blue-500 py-4 rounded-2xl font-bold text-xl transition-all active:scale-95 shadow-lg shadow-blue-500/20">Entrar ahora</button>
         </div>
     </div>
 
-    <main class="flex-grow container mx-auto px-4 py-8">
-        <div class="flex justify-between items-center mb-8">
+    <main class="max-w-6xl mx-auto p-6">
+        <div class="flex flex-wrap justify-between items-center gap-4 mb-10">
             <div>
-                <h1 class="text-xl font-bold text-blue-400">Sala: <span id="displayRoom" class="text-white">...</span></h1>
-                <p class="text-slate-400 text-sm">Jugando como: <span id="displayName" class="font-bold">...</span></p>
+                <div class="flex items-center gap-3">
+                    <h2 class="text-2xl font-bold text-blue-400" id="roomTitle">Sala</h2>
+                    <button onclick="copyLink()" class="text-xs bg-slate-800 hover:bg-slate-700 px-3 py-1 rounded-full border border-slate-700 transition" id="copyBtn">🔗 Copiar link</button>
+                </div>
+                <input type="text" id="taskInput" onchange="updateTask()" class="bg-transparent border-b border-slate-800 text-slate-400 focus:text-white focus:border-blue-500 outline-none text-lg mt-1 w-64 transition-all" placeholder="ID de tarea (ej: JIRA-101)">
             </div>
-            <div id="avgDisplay" class="hidden bg-blue-600 px-4 py-2 rounded-lg font-bold">
-                Promedio: <span id="avgValue">0</span>
+            
+            <div class="flex items-center gap-4">
+                <div id="timerDisplay" class="text-2xl font-mono bg-slate-900 border border-slate-800 px-4 py-2 rounded-xl text-emerald-400">01:00</div>
+                <button onclick="startTimer()" class="bg-slate-800 hover:bg-slate-700 p-2 rounded-full">⏱️</button>
             </div>
         </div>
 
-        <div id="deck" class="flex flex-wrap justify-center gap-3 mb-12"></div>
+        <div id="deck" class="flex flex-wrap justify-center gap-4 mb-12"></div>
 
-        <div class="bg-slate-800/50 border border-slate-700 p-8 rounded-[3rem] min-h-[300px] flex flex-col justify-between">
-            <div id="playersGrid" class="flex flex-wrap justify-center gap-8">
-                </div>
-
-            <div class="mt-12 flex justify-center gap-4">
-                <button onclick="reveal()" class="bg-green-600 hover:bg-green-500 px-10 py-3 rounded-full font-bold transition-all transform hover:scale-105 active:scale-95">Revelar Cartas</button>
-                <button onclick="reset()" class="bg-slate-700 hover:bg-slate-600 px-10 py-3 rounded-full font-bold transition-all transform hover:scale-105 active:scale-95">Nueva Partida</button>
+        <div class="bg-slate-900/50 rounded-[3rem] p-12 border border-slate-800 shadow-inner relative">
+            <div id="grid" class="flex flex-wrap justify-center gap-10"></div>
+            
+            <div class="mt-16 flex flex-wrap justify-center gap-4 border-t border-slate-800 pt-10">
+                <button onclick="reveal()" class="bg-emerald-600 hover:bg-emerald-500 px-10 py-4 rounded-2xl font-bold text-lg shadow-lg shadow-emerald-900/20 transition-all active:scale-95">Revelar Resultados</button>
+                <button onclick="reset()" class="bg-slate-800 hover:bg-slate-700 px-10 py-4 rounded-2xl font-bold text-lg transition-all">Nueva Ronda</button>
+                <button onclick="exportCSV()" class="bg-slate-800 hover:bg-slate-700 px-6 py-4 rounded-2xl font-bold transition-all">📥 CSV</button>
             </div>
+        </div>
+
+        <div id="stats" class="hidden mt-8 text-center animate-bounce">
+            <span class="text-5xl font-black text-white" id="avgVal">0</span>
+            <p class="text-slate-500 font-bold uppercase tracking-widest text-sm">Puntos Promedio</p>
         </div>
     </main>
 
     <script>
         const socket = io();
-        let currentRoom = "";
-        const deckValues = [0, 1, 2, 3, 5, 8, 13, 21, '?'];
+        let currentRoom = "", myUser = "", lastState = {};
 
         function joinRoom() {
-            const user = document.getElementById('username').value;
-            const room = document.getElementById('room').value || "general";
-            if(!user) return alert("¡Danos tu nombre!");
-            
-            currentRoom = room;
-            document.getElementById('displayRoom').innerText = room;
-            document.getElementById('displayName').innerText = user;
-            document.getElementById('login').classList.add('hidden');
-
-            socket.emit('join_room', { roomId: room, username: user });
+            myUser = document.getElementById('username').value;
+            currentRoom = document.getElementById('room').value || "general";
+            if(!myUser) return alert("Escribe tu nombre");
+            document.getElementById('login').style.display = 'none';
+            document.getElementById('roomTitle').innerText = currentRoom;
+            socket.emit('join_room', { roomId: currentRoom, username: myUser });
         }
 
-        // Renderizar el Deck
-        const deckContainer = document.getElementById('deck');
-        deckValues.forEach(val => {
-            const btn = document.createElement('button');
-            btn.innerText = val;
-            btn.className = "w-14 h-20 bg-white text-slate-900 rounded-xl font-black text-xl hover:-translate-y-3 transition-all shadow-xl hover:bg-blue-50 active:scale-90 border-b-4 border-slate-300";
-            btn.onclick = () => socket.emit('cast_vote', { roomId: currentRoom, value: val });
-            deckContainer.appendChild(btn);
+        const deck = [0,1,2,3,5,8,13,21,'?','☕'];
+        const deckDiv = document.getElementById('deck');
+        deck.forEach(v => {
+            const b = document.createElement('button');
+            b.innerText = v;
+            b.className = "w-16 h-24 bg-white text-slate-900 rounded-2xl font-black text-2xl hover:-translate-y-4 transition-all shadow-xl hover:shadow-blue-500/20 active:scale-90 border-b-8 border-slate-200";
+            b.onclick = () => socket.emit('cast_vote', { roomId: currentRoom, value: v });
+            deckDiv.appendChild(b);
         });
 
         socket.on('update_state', (state) => {
-            const grid = document.getElementById('playersGrid');
+            lastState = state;
+            const grid = document.getElementById('grid');
             grid.innerHTML = "";
-            let sum = 0;
-            let count = 0;
-
-            Object.values(state.votes).forEach(player => {
-                const cardWrap = document.createElement('div');
-                cardWrap.className = "flex flex-col items-center gap-3";
-
+            document.getElementById('taskInput').value = state.taskName;
+            
+            let votesArr = [];
+            Object.entries(state.votes).forEach(([id, p]) => {
                 const card = document.createElement('div');
-                let cardClass = "w-16 h-24 rounded-2xl flex items-center justify-center text-2xl font-black transition-all duration-500 ";
+                card.className = "flex flex-col items-center gap-4 animate-in fade-in duration-500";
+                
+                let content = "";
+                let style = "w-20 h-32 rounded-3xl flex items-center justify-center text-3xl font-black transition-all duration-700 shadow-2xl ";
+                
+                const avatar = `https://api.dicebear.com/7.x/bottts/svg?seed=${p.name}`;
 
                 if (state.visible) {
-                    cardClass += "bg-white text-blue-600 border-4 border-blue-400 rotate-0";
-                    card.innerText = player.value !== null ? player.value : "-";
-                    if(typeof player.value === 'number') { sum += player.value; count++; }
+                    style += "bg-white text-blue-600 rotate-[360deg] scale-110 border-4 border-blue-400";
+                    content = p.value ?? "-";
+                    if(typeof p.value === 'number') votesArr.push(p.value);
                 } else {
-                    if (player.value !== null) {
-                        cardClass += "bg-blue-600 text-white shadow-lg shadow-blue-500/50 -translate-y-2";
-                        card.innerText = "✓";
+                    if (p.value !== null) {
+                        style += "bg-gradient-to-br from-blue-600 to-blue-800 text-white shadow-blue-500/40 -translate-y-3";
+                        content = "✓";
                     } else {
-                        cardClass += "bg-slate-700 text-slate-500 border-2 border-dashed border-slate-600";
-                        card.innerText = "";
+                        style += "bg-slate-800 text-slate-700 border-2 border-dashed border-slate-700";
+                        content = "";
                     }
                 }
 
-                card.className = cardClass;
-                cardWrap.innerHTML = `
-                    <div class="${cardClass}">${card.innerText}</div>
-                    <span class="text-xs font-bold uppercase tracking-wider text-slate-400">${player.name}</span>
+                card.innerHTML = `
+                    <div class="${style}">${content}</div>
+                    <div class="flex items-center gap-2">
+                        <img src="${avatar}" class="w-6 h-6 rounded-full bg-slate-800">
+                        <span class="font-bold text-sm text-slate-400">${p.name}</span>
+                    </div>
                 `;
-                grid.appendChild(cardWrap);
+                grid.appendChild(card);
             });
 
-            // Promedio
-            const avgDiv = document.getElementById('avgDisplay');
-            if (state.visible && count > 0) {
-                avgDiv.classList.remove('hidden');
-                document.getElementById('avgValue').innerText = (sum / count).toFixed(1);
+            if(state.visible && votesArr.length > 0) {
+                const avg = (votesArr.reduce((a,b)=>a+b,0)/votesArr.length).toFixed(1);
+                document.getElementById('stats').classList.remove('hidden');
+                document.getElementById('avgVal').innerText = avg;
+                if(new Set(votesArr).size === 1) confetti({ particleCount: 150, spread: 70, origin: { y: 0.6 } });
             } else {
-                avgDiv.classList.add('hidden');
+                document.getElementById('stats').classList.add('hidden');
             }
         });
 
+        // Funciones auxiliares
         function reveal() { socket.emit('reveal_votes', currentRoom); }
         function reset() { socket.emit('reset_game', currentRoom); }
+        function updateTask() { socket.emit('update_task', { roomId: currentRoom, taskName: document.getElementById('taskInput').value }); }
+        
+        function startTimer() { socket.emit('start_timer', currentRoom); }
+        socket.on('timer_triggered', (sec) => {
+            let t = sec;
+            const interval = setInterval(() => {
+                t--;
+                const m = Math.floor(t/60), s = t%60;
+                document.getElementById('timerDisplay').innerText = `${m.toString().padStart(2,'0')}:${s.toString().padStart(2,'0')}`;
+                if(t <= 0) clearInterval(interval);
+            }, 1000);
+        });
+
+        function copyLink() {
+            navigator.clipboard.writeText(`${window.location.origin}/?room=${currentRoom}`);
+            document.getElementById('copyBtn').innerText = "✅ Copiado";
+            setTimeout(()=> document.getElementById('copyBtn').innerText = "🔗 Copiar link", 2000);
+        }
+
+        function exportCSV() {
+            let csv = "Jugador,Voto\n";
+            Object.values(lastState.votes).forEach(p => csv += `${p.name},${p.value}\n`);
+            const blob = new Blob([csv], {type: 'text/csv'});
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url; a.download = `poker-${currentRoom}.csv`; a.click();
+        }
+
+        // Auto-room desde URL
+        const u = new URLSearchParams(window.location.search).get('room');
+        if(u) document.getElementById('room').value = u;
     </script>
 </body>
 </html>
