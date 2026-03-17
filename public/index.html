@@ -2,77 +2,91 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>Poker Plan Pro - Ultra</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Poker Plan Pro</title>
     <script src="/socket.io/socket.io.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
+    <script type="module" src="https://cdn.jsdelivr.net/npm/emoji-picker-element@1/index.js"></script>
     <style>
-        :root { --p-size: clamp(300px, 80vw, 550px); }
-        body { user-select: none; -webkit-user-select: none; overflow-x: hidden; }
-        .table-center { 
-            position: relative; 
-            width: var(--p-size); 
-            height: var(--p-size); 
-            border-radius: 50%; 
-            background: radial-gradient(circle, #1e293b 0%, #080c14 100%); 
-            border: 8px solid #334155; 
+        /* La mesa se adapta al alto de la pantalla para no pisar el deck */
+        :root { --p-size: clamp(280px, 60vh, 500px); }
+        body { 
+            user-select: none; -webkit-user-select: none; 
+            overflow: hidden; background-color: #020617; 
+            height: 100vh; display: flex; flex-direction: column;
         }
-        .player-spot { position: absolute; transform: translate(-50%, -50%); transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1); }
-        .projectile { position: fixed; pointer-events: none; z-index: 1000; font-size: 2.5rem; transition: all 0.6s ease-out; }
+        .table-center { 
+            position: relative; width: var(--p-size); height: var(--p-size); 
+            border-radius: 50%; background: radial-gradient(circle, #0f172a 0%, #020617 100%); 
+            border: 6px solid #1e293b; display: flex; align-items: center; justify-content: center;
+        }
+        .player-spot { position: absolute; transform: translate(-50%, -50%); z-index: 50; }
+        .projectile { position: fixed; pointer-events: none; z-index: 1000; font-size: 2rem; transition: all 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
         .buzz-active { animation: buzz 0.1s infinite; }
-        @keyframes buzz { 0%, 100% { transform: translateX(0); } 25% { transform: translateX(4px); } 75% { transform: translateX(-4px); } }
-        /* Scrollbar estética para el deck */
-        #deck::-webkit-scrollbar { height: 6px; }
-        #deck::-webkit-scrollbar-thumb { background: #334155; border-radius: 10px; }
+        @keyframes buzz { 0%, 100% { transform: translate(0,0); } 25% { transform: translate(4px,4px); } 75% { transform: translate(-4px,-4px); } }
+        #emoji-picker-container { display: none; position: absolute; top: 80px; right: 20px; z-index: 1000; border-radius: 1rem; overflow: hidden; }
+        emoji-picker { width: 280px; height: 350px; }
     </style>
 </head>
-<body class="bg-slate-950 text-white min-h-screen flex flex-col items-center p-4">
+<body class="text-white p-4">
 
     <div id="login" class="fixed inset-0 bg-slate-950 z-[200] flex items-center justify-center p-4">
-        <div class="bg-slate-900 p-8 rounded-[2.5rem] border border-slate-800 w-full max-w-sm shadow-2xl">
-            <h1 class="text-3xl font-black text-center mb-6 bg-gradient-to-r from-blue-500 to-cyan-400 bg-clip-text text-transparent">POKER PLAN</h1>
-            <input type="text" id="username" placeholder="Tu Nombre" class="w-full p-4 mb-3 bg-slate-800 rounded-2xl outline-none border border-slate-700 focus:border-blue-500 transition-all">
-            <input type="text" id="room" placeholder="Nombre de la Sala" class="w-full p-4 mb-6 bg-slate-800 rounded-2xl outline-none border border-slate-700 focus:border-blue-500 transition-all">
-            <button onclick="joinRoom()" class="w-full bg-blue-600 py-4 rounded-2xl font-bold text-lg hover:bg-blue-500 shadow-lg shadow-blue-900/40 transition-all active:scale-95">Entrar a la mesa</button>
+        <div class="bg-slate-900 p-8 rounded-[2.5rem] border border-slate-800 w-full max-w-sm text-center shadow-2xl">
+            <h1 class="text-3xl font-black mb-6 text-blue-500 italic">POKER PLAN</h1>
+            <input type="text" id="username" placeholder="Tu Nombre" class="w-full p-4 mb-3 bg-slate-800 rounded-2xl outline-none border border-slate-700 focus:border-blue-500">
+            <input type="text" id="room" placeholder="Nombre de la Sala" class="w-full p-4 mb-6 bg-slate-800 rounded-2xl outline-none border border-slate-700 focus:border-blue-500">
+            <button onclick="joinRoom()" class="w-full bg-blue-600 py-4 rounded-2xl font-bold text-lg hover:bg-blue-500 active:scale-95 transition-all">Entrar</button>
         </div>
     </div>
 
-    <header class="w-full max-w-6xl flex flex-wrap justify-between items-center gap-6 mb-4 z-50">
-        <div class="flex flex-col gap-1">
-            <div class="flex items-center gap-3">
-                <h2 id="roomTitle" class="text-2xl font-black text-blue-400 italic">...</h2>
-                <button onclick="copyLink()" class="text-[10px] bg-slate-800 hover:bg-slate-700 px-3 py-1 rounded-full border border-slate-700 font-bold tracking-widest transition-colors">COMPARTIR SALA</button>
+    <header class="w-full max-w-6xl mx-auto flex justify-between items-center z-50">
+        <div class="flex flex-col">
+            <div class="flex items-center gap-2">
+                <h2 id="roomTitle" class="text-lg font-black text-blue-400">...</h2>
+                <button onclick="copyLink()" class="text-[9px] bg-slate-900 border border-slate-800 px-2 py-1 rounded-full text-slate-500 hover:text-white font-bold transition-all">COPIAR LINK</button>
             </div>
-            <input type="text" id="taskInput" onchange="updateTask()" class="bg-transparent border-b border-slate-800 text-slate-500 outline-none w-64 focus:text-white focus:border-blue-500 transition-all py-1" placeholder="Tarea 1">
+            <input type="text" id="taskInput" onchange="updateTask()" class="bg-transparent border-b border-slate-900 text-slate-500 outline-none w-40 focus:text-white transition-all py-1 text-xs" placeholder="Tarea 1">
         </div>
         
-        <div class="flex items-center gap-3">
-            <div class="flex bg-slate-900 p-1.5 rounded-2xl border border-slate-800 gap-1 shadow-inner">
-                <button onclick="selectedEmoji='🔥'" class="w-10 h-10 hover:bg-slate-800 rounded-xl transition-all">🔥</button>
-                <button onclick="selectedEmoji='⭐'" class="w-10 h-10 hover:bg-slate-800 rounded-xl transition-all">⭐</button>
-                <button onclick="selectedEmoji='🎯'" class="w-10 h-10 hover:bg-slate-800 rounded-xl transition-all">🎯</button>
-                <button onclick="openCustomEmoji()" class="w-10 h-10 hover:bg-slate-800 rounded-xl transition-all text-slate-500 font-bold">+</button>
-                <input type="text" id="emojiHidden" class="hidden" onchange="setCustomEmoji(this.value)">
+        <div class="flex items-center gap-2">
+            <div class="flex bg-slate-900 p-1 rounded-xl border border-slate-800 gap-1 items-center">
+                <button onclick="selectedEmoji='🔥'" class="w-8 h-8 hover:bg-slate-800 rounded-lg transition-all">🔥</button>
+                <button onclick="selectedEmoji='⭐'" class="w-8 h-8 hover:bg-slate-800 rounded-lg transition-all">⭐</button>
+                <button onclick="toggleEmojiPicker()" class="w-8 h-8 hover:bg-slate-800 rounded-lg transition-all text-blue-500 font-bold">+</button>
             </div>
-            <button onclick="exportCSV()" class="bg-slate-800 hover:bg-slate-700 border border-slate-700 px-5 py-2.5 rounded-2xl text-xs font-bold shadow-md active:translate-y-0.5 transition-all">DESCARGAR CSV</button>
+            <button onclick="exportCSV()" class="bg-slate-900 border border-slate-800 hover:bg-slate-800 px-4 py-2 rounded-xl text-[10px] font-black text-slate-400 uppercase transition-all shadow-md active:scale-95">CSV</button>
         </div>
     </header>
 
-    <div class="flex-grow flex flex-col items-center justify-center w-full min-h-0 relative">
-        <div class="table-center flex items-center justify-center shadow-[0_0_100px_rgba(30,58,138,0.2)]">
-            <div id="grid" class="relative w-full h-full"></div>
-            <div id="avg" class="text-4xl font-black text-blue-400 drop-shadow-lg"></div>
-        </div>
+    <div id="emoji-picker-container"><emoji-picker></emoji-picker></div>
 
-        <div class="mt-8 mb-32 h-16">
-            <button id="mainBtn" onclick="mainAction()" class="px-12 py-4 rounded-2xl font-black text-xl transition-all shadow-xl active:scale-95"></button>
+    <div class="flex-grow flex items-center justify-center w-full relative min-h-0">
+        <div class="table-center">
+            <div id="grid" class="absolute inset-0 w-full h-full pointer-events-none"></div>
+            <div class="z-[100] flex flex-col items-center text-center p-4">
+                <button id="mainBtn" onclick="mainAction()" class="px-5 py-4 rounded-[2rem] font-black text-[10px] uppercase leading-none transition-all shadow-2xl active:scale-90 border-2"></button>
+                <div id="avg" class="mt-2 text-3xl font-black text-blue-400 italic"></div>
+            </div>
         </div>
     </div>
 
-    <div id="deck" class="fixed bottom-6 z-[150] flex gap-3 p-5 bg-slate-900/95 rounded-[2.5rem] border border-slate-800 backdrop-blur-xl shadow-2xl overflow-x-auto max-w-[90vw] scroll-smooth"></div>
+    <div class="w-full flex justify-center pb-6">
+        <div id="deck" class="flex gap-2 p-4 bg-slate-900/80 rounded-[2rem] border border-slate-800 backdrop-blur-md shadow-2xl overflow-x-auto max-w-[95vw] no-scrollbar"></div>
+    </div>
 
     <script>
         const socket = io();
-        let currentRoom = "", selectedEmoji = "🔥", attackHits = 0, isVisible = false;
+        let currentRoom = "", selectedEmoji = "🔥", attackHits = 0, isVisible = false, lastState = {};
+
+        document.querySelector('emoji-picker').addEventListener('emoji-click', e => {
+            selectedEmoji = e.detail.unicode;
+            document.getElementById('emoji-picker-container').style.display = 'none';
+        });
+
+        function toggleEmojiPicker() {
+            const c = document.getElementById('emoji-picker-container');
+            c.style.display = c.style.display === 'block' ? 'none' : 'block';
+        }
 
         function joinRoom() {
             const user = document.getElementById('username').value;
@@ -84,60 +98,51 @@
             socket.emit('join_room', { roomId: room, username: user });
         }
 
-        // DECK
         [0, 1, 2, 3, 5, 8, 13, 21, '?', '☕'].forEach(v => {
             const b = document.createElement('button');
             b.innerText = v;
-            b.className = "w-14 h-20 bg-white text-slate-900 rounded-2xl font-black text-2xl hover:-translate-y-4 transition-all flex-shrink-0 shadow-lg border-b-4 border-slate-300 active:translate-y-0";
+            b.className = "w-12 h-16 bg-white text-slate-950 rounded-xl font-black text-xl hover:-translate-y-2 transition-all flex-shrink-0 shadow-lg border-b-4 border-slate-300";
             b.onclick = () => socket.emit('cast_vote', { roomId: currentRoom, value: v });
             document.getElementById('deck').appendChild(b);
         });
 
         socket.on('update_state', (state) => {
             isVisible = state.visible;
+            lastState = state;
             const grid = document.getElementById('grid');
             grid.innerHTML = "";
             const players = Object.entries(state.votes);
-            const total = players.length;
             const tableWidth = document.querySelector('.table-center').offsetWidth;
-            const radius = (tableWidth / 2) - 10;
-            
-            let votesArr = [];
+            const radius = (tableWidth / 2) - 5; 
 
             players.forEach(([id, p], i) => {
-                const angle = (i * (360 / total) - 90) * (Math.PI / 180);
+                const angle = (i * (360 / players.length) - 90) * (Math.PI / 180);
                 const x = (tableWidth/2) + radius * Math.cos(angle);
                 const y = (tableWidth/2) + radius * Math.sin(angle);
-
                 const div = document.createElement('div');
-                div.className = "player-spot flex flex-col items-center";
-                div.style.left = `${x}px`;
-                div.style.top = `${y}px`;
-                div.id = `p-${id}`;
+                div.className = "player-spot flex flex-col items-center pointer-events-auto";
+                div.style.left = `${x}px`; div.style.top = `${y}px`; div.id = `p-${id}`;
 
-                let content = state.visible ? (p.value ?? "-") : (p.value !== null ? "✓" : "");
-                let style = p.value !== null ? (state.visible ? "bg-white text-blue-600 scale-110 border-blue-400" : "bg-blue-600 text-white shadow-blue-500/50") : "bg-slate-800 border-dashed border-2 border-slate-700 text-transparent";
-                if(state.visible && typeof p.value === 'number') votesArr.push(p.value);
-
+                let style = p.value !== null ? (state.visible ? "bg-white text-blue-600 border-blue-400" : "bg-blue-600 text-white shadow-blue-500/50") : "bg-slate-900/50 border-dashed border-2 border-slate-800 text-transparent";
                 div.innerHTML = `
-                    <div class="w-16 h-24 ${style} rounded-2xl flex items-center justify-center text-3xl font-black shadow-2xl transition-all duration-500 mb-2 cursor-pointer border-2" onclick="sendEmoji('${id}', event)">
-                        ${content}
+                    <div class="w-12 h-18 ${style} rounded-xl flex items-center justify-center text-xl font-black shadow-2xl transition-all duration-500 mb-1 border-2" onclick="sendEmoji('${id}', event)">
+                        ${state.visible ? (p.value ?? "-") : (p.value !== null ? "✓" : "")}
                     </div>
-                    <span class="text-[10px] font-black text-slate-500 uppercase tracking-widest truncate max-w-[80px]">${p.name}</span>
+                    <span class="text-[8px] font-black text-slate-600 uppercase tracking-widest truncate max-w-[60px]">${p.name}</span>
                 `;
                 grid.appendChild(div);
             });
 
-            // Actualizar Botón Principal
             const btn = document.getElementById('mainBtn');
             if(state.visible) {
-                btn.innerText = "SIGUIENTE TAREA";
-                btn.className = "px-12 py-4 rounded-2xl font-black text-xl bg-slate-800 text-white hover:bg-slate-700 transition-all shadow-xl active:scale-95 border border-slate-700";
+                btn.innerHTML = "SIGUIENTE<br>TAREA";
+                btn.className = "px-5 py-4 rounded-[2rem] font-black text-[10px] bg-slate-900 text-white border-slate-800 active:scale-90 transition-all";
             } else {
-                btn.innerText = "REVELAR CARTAS";
-                btn.className = "px-12 py-4 rounded-2xl font-black text-xl bg-blue-600 text-white hover:bg-blue-500 transition-all shadow-xl shadow-blue-900/30 active:scale-95";
+                btn.innerHTML = "REVELAR<br>CARTAS";
+                btn.className = "px-5 py-4 rounded-[2rem] font-black text-[10px] bg-blue-600 text-white border-blue-500 shadow-lg shadow-blue-900/40 active:scale-90 transition-all";
             }
 
+            const votesArr = Object.values(state.votes).filter(p => typeof p.value === 'number').map(p => p.value);
             document.getElementById('avg').innerText = (state.visible && votesArr.length) ? (votesArr.reduce((a,b)=>a+b,0)/votesArr.length).toFixed(1) : "";
             document.getElementById('taskInput').value = state.taskName;
         });
@@ -146,19 +151,16 @@
             if(!isVisible) {
                 socket.emit('reveal_votes', currentRoom);
             } else {
-                // Incrementar serialmente la tarea
                 let currentTask = document.getElementById('taskInput').value;
                 let nextTask = currentTask.replace(/\d+$/, (n) => parseInt(n) + 1);
                 if(nextTask === currentTask) nextTask += " 2";
-                
                 socket.emit('update_task', { roomId: currentRoom, taskName: nextTask });
                 socket.emit('reset_game', currentRoom);
             }
         }
 
-        // EMOJIS
         function sendEmoji(toId, e) {
-            if(toId === socket.id) return; // No auto-emoji
+            if(toId === socket.id) return;
             socket.emit('send_emoji', { roomId: currentRoom, toSocketId: toId, emoji: selectedEmoji, fromPos: {x: e.clientX, y: e.clientY} });
         }
 
@@ -166,50 +168,41 @@
             const target = document.getElementById(`p-${toSocketId}`);
             if(!target) return;
             const rect = target.getBoundingClientRect();
-            
             const p = document.createElement('div');
-            p.className = "projectile";
-            p.innerText = emoji;
-            p.style.left = fromPos.x + "px";
-            p.style.top = fromPos.y + "px";
+            p.className = "projectile"; p.innerText = emoji;
+            p.style.left = fromPos.x + "px"; p.style.top = fromPos.y + "px";
             document.body.appendChild(p);
-
-            setTimeout(() => {
-                p.style.left = (rect.left + 20) + "px";
-                p.style.top = (rect.top + 20) + "px";
-                p.style.opacity = "0";
-            }, 50);
-
-            setTimeout(() => {
+            setTimeout(() => { p.style.left = (rect.left + 20) + "px"; p.style.top = (rect.top + 20) + "px"; p.style.opacity = "0"; }, 50);
+            setTimeout(() => { 
                 p.remove();
                 if(socket.id === toSocketId) {
                     attackHits++;
                     if(attackHits > 7) {
                         document.body.classList.add('buzz-active');
-                        setTimeout(() => { document.body.classList.remove('buzz-active'); attackHits = 0; }, 800);
+                        setTimeout(() => { document.body.classList.remove('buzz-active'); attackHits = 0; }, 1000);
                     }
                 }
-            }, 600);
+            }, 650);
         });
-
-        function openCustomEmoji() {
-            const char = prompt("Pega aquí tu emoji:");
-            if(char) selectedEmoji = char;
-        }
-
-        function exportCSV() {
-            let csv = "Ronda,Tarea,Jugador,Voto\n";
-            // Asumiendo que el server envía el historial en el estado o lo pides
-            socket.emit('request_history', currentRoom); // Podrías implementar esto para mayor seguridad
-            // Usando la lógica previa del historial en el cliente si existe
-        }
 
         function copyLink() {
             navigator.clipboard.writeText(`${window.location.origin}/?room=${currentRoom}`);
-            alert("¡Link copiado al portapapeles!");
+            alert("¡Link copiado!");
         }
 
         function updateTask() { socket.emit('update_task', { roomId: currentRoom, taskName: document.getElementById('taskInput').value }); }
+        
+        function exportCSV() {
+            if(!lastState.history?.length) return alert("No hay rondas grabadas.");
+            let csv = "Ronda,Tarea,Jugador,Voto\n";
+            lastState.history.forEach((r, i) => {
+                Object.entries(r.results).forEach(([n, v]) => csv += `${i+1},${r.task},${n},${v}\n`);
+            });
+            const blob = new Blob([csv], {type: 'text/csv'});
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url; a.download = `sesion-${currentRoom}.csv`; a.click();
+        }
     </script>
 </body>
 </html>
