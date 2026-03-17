@@ -12,62 +12,60 @@
         body { 
             user-select: none; -webkit-user-select: none; 
             overflow: hidden; background-color: #020617; 
-            height: 100vh; display: flex; flex-direction: column; font-family: system-ui, sans-serif;
+            height: 100vh; display: flex; flex-direction: column; font-family: ui-sans-serif, system-ui;
         }
-        /* Mesa Circular */
         .table-center { 
             position: relative; width: var(--p-size); height: var(--p-size); 
             border-radius: 50%; background: radial-gradient(circle, #0f172a 0%, #020617 100%); 
             border: 6px solid #1e293b; display: flex; align-items: center; justify-content: center;
         }
         .player-spot { position: absolute; transform: translate(-50%, -50%); z-index: 50; }
-        
-        /* Estilo de Carta Real */
         .playing-card {
-            width: 3.5rem; height: 5rem;
-            border-radius: 0.6rem;
+            width: 3.5rem; height: 5rem; border-radius: 0.6rem;
             display: flex; align-items: center; justify-content: center;
             font-size: 1.5rem; font-weight: 900;
             transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-            border: 2px solid rgba(255,255,255,0.1);
-            position: relative;
-            box-shadow: 0 10px 15px -3px rgba(0,0,0,0.5);
+            border: 2px solid rgba(255,255,255,0.1); box-shadow: 0 10px 15px -3px rgba(0,0,0,0.5);
         }
 
-        /* Físicas de Emoji */
-        .projectile { 
-            position: fixed; pointer-events: none; z-index: 1000; font-size: 2.2rem; 
-            transition: left 0.4s linear, top 0.4s cubic-bezier(0.1, 0.2, 0.3, 1);
+        /* Notificaciones Toast */
+        #toast-container { position: fixed; top: 20px; right: 20px; z-index: 1000; display: flex; flex-direction: column; gap: 10px; }
+        .toast { 
+            background: #1e293b; border-left: 4px solid #3b82f6; color: white; padding: 12px 20px; 
+            border-radius: 8px; font-size: 13px; font-weight: 600; box-shadow: 0 10px 15px rgba(0,0,0,0.3);
+            animation: slideIn 0.3s ease-out forwards;
         }
-        
+        @keyframes slideIn { from { transform: translateX(120%); } to { transform: translateX(0); } }
+
+        /* Físicas de Emoji */
+        .projectile { position: fixed; pointer-events: none; z-index: 1000; font-size: 2.2rem; transition: left 0.4s linear, top 0.4s cubic-bezier(0.1, 0.2, 0.3, 1); }
+        .rebound { animation: fall-and-roll 0.8s ease-in forwards; }
         @keyframes fall-and-roll {
             0% { transform: translate(0, 0) rotate(0deg); opacity: 1; }
             30% { transform: translate(15px, -20px) rotate(45deg); opacity: 1; }
             100% { transform: translate(30px, 60px) rotate(180deg); opacity: 0; }
         }
-        .rebound { animation: fall-and-roll 0.8s ease-in forwards; }
 
         .buzz-active { animation: buzz 0.1s infinite; }
         @keyframes buzz { 0%, 100% { transform: translate(0,0); } 25% { transform: translate(4px,4px); } 75% { transform: translate(-4px,-4px); } }
-        
         #emoji-picker-container { display: none; position: absolute; top: 80px; right: 20px; z-index: 1000; border-radius: 1rem; overflow: hidden; }
-        
-        .has-tooltip:hover .tooltip { opacity: 1; visibility: visible; }
-        .tooltip { 
-            visibility: hidden; opacity: 0; position: absolute; bottom: 120%; left: 50%; 
-            transform: translateX(-50%); background: #1e293b; color: white; padding: 6px 10px; 
-            border-radius: 8px; font-size: 10px; white-space: nowrap; transition: 0.2s; border: 1px solid #334155;
-        }
+        .shake { animation: shake 0.4s ease-in-out; }
+        @keyframes shake { 0%, 100% { transform: translateX(0); } 25% { transform: translateX(-5px); } 75% { transform: translateX(5px); } }
     </style>
 </head>
 <body class="text-white p-4">
+
+    <div id="toast-container"></div>
 
     <div id="login" class="fixed inset-0 bg-slate-950 z-[200] flex items-center justify-center p-4">
         <div class="bg-slate-900 p-8 rounded-[2.5rem] border border-slate-800 w-full max-w-sm text-center shadow-2xl">
             <h1 class="text-3xl font-black mb-6 text-blue-500 italic uppercase">Poker Plan</h1>
             <input type="text" id="username" placeholder="Tu Nombre" class="w-full p-4 mb-3 bg-slate-800 rounded-2xl outline-none border border-slate-700 focus:border-blue-500">
-            <input type="text" id="room" placeholder="Nombre de la Sala" class="w-full p-4 mb-6 bg-slate-800 rounded-2xl outline-none border border-slate-700 focus:border-blue-500">
-            <button onclick="joinRoom()" class="w-full bg-blue-600 py-4 rounded-2xl font-bold text-lg hover:bg-blue-500 active:scale-95 transition-all">Empezar</button>
+            <div id="roomSelection">
+                <input type="text" id="room" placeholder="Nombre de la Sala" class="w-full p-4 mb-6 bg-slate-800 rounded-2xl outline-none border border-slate-700 focus:border-blue-500">
+            </div>
+            <p id="invitedText" class="hidden mb-6 text-slate-400 text-sm italic">Te han invitado a una sala privada</p>
+            <button onclick="joinRoom()" class="w-full bg-blue-600 py-4 rounded-2xl font-bold text-lg hover:bg-blue-500 active:scale-95 transition-all shadow-lg shadow-blue-900/20">Empezar</button>
         </div>
     </div>
 
@@ -85,11 +83,7 @@
                 <button onclick="selectedEmoji='🍅'" class="w-8 h-8 hover:bg-slate-800 rounded-lg transition-all">🍅</button>
                 <button onclick="toggleEmojiPicker()" class="w-8 h-8 hover:bg-slate-800 rounded-lg transition-all text-blue-500 font-bold">+</button>
             </div>
-            
-            <div class="relative has-tooltip">
-                <button onclick="exportCSV()" class="bg-slate-900 border border-slate-800 hover:bg-slate-800 px-4 py-2.5 rounded-xl text-[10px] font-black text-slate-400 uppercase transition-all shadow-md active:scale-95">CSV</button>
-                <span class="tooltip">Exportar sesión para análisis / LLM</span>
-            </div>
+            <button onclick="exportCSV()" class="bg-slate-900 border border-slate-800 hover:bg-slate-800 px-4 py-2.5 rounded-xl text-[10px] font-black text-slate-400 uppercase transition-all shadow-md active:scale-95">CSV</button>
         </div>
     </header>
 
@@ -118,6 +112,25 @@
         const socket = io();
         let currentRoom = "", selectedEmoji = "📄", attackHits = 0, isVisible = false, lastState = {};
 
+        // 1. Lógica de Invitación
+        const urlParams = new URLSearchParams(window.location.search);
+        const inviteRoom = urlParams.get('room');
+        if (inviteRoom) {
+            document.getElementById('roomSelection').classList.add('hidden');
+            document.getElementById('invitedText').classList.remove('hidden');
+            document.getElementById('room').value = inviteRoom;
+        }
+
+        // 2. Notificaciones Toast
+        function showToast(msg, type = "info") {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            toast.className = `toast border-l-4 ${type === 'error' ? 'border-red-500' : 'border-blue-500'}`;
+            toast.innerText = msg;
+            container.appendChild(toast);
+            setTimeout(() => { toast.style.opacity = '0'; setTimeout(() => toast.remove(), 500); }, 3000);
+        }
+
         document.querySelector('emoji-picker').addEventListener('emoji-click', e => {
             selectedEmoji = e.detail.unicode;
             document.getElementById('emoji-picker-container').style.display = 'none';
@@ -130,12 +143,13 @@
 
         function joinRoom() {
             const user = document.getElementById('username').value;
-            const room = document.getElementById('room').value || "general";
-            if(!user) return;
+            const room = document.getElementById('room').value;
+            if(!user || !room) { showToast("Nombre y sala requeridos", "error"); return; }
             currentRoom = room;
             document.getElementById('login').classList.add('hidden');
             document.getElementById('roomTitle').innerText = room.toUpperCase();
             socket.emit('join_room', { roomId: room, username: user });
+            showToast(`Bienvenido a ${room}`);
         }
 
         [0, 1, 2, 3, 5, 8, 13, 21, '?', '☕'].forEach(v => {
@@ -177,12 +191,14 @@
             });
 
             const btn = document.getElementById('mainBtn');
+            const allVoted = Object.values(state.votes).every(p => p.value !== null);
+
             if(state.visible) {
                 btn.innerHTML = "SIGUIENTE<br>TAREA";
-                btn.className = "px-6 py-5 rounded-[2.5rem] font-black text-[10px] bg-slate-900 text-white border-slate-800 active:scale-90 transition-all";
+                btn.className = "px-5 py-5 rounded-[2.2rem] font-black text-[10px] bg-slate-900 text-white border-slate-800 active:scale-90 transition-all cursor-pointer";
             } else {
                 btn.innerHTML = "REVELAR<br>CARTAS";
-                btn.className = "px-6 py-5 rounded-[2.5rem] font-black text-[10px] bg-blue-600 text-white border-blue-500 shadow-lg shadow-blue-900/40 active:scale-90 transition-all";
+                btn.className = `px-5 py-5 rounded-[2.2rem] font-black text-[10px] ${allVoted ? 'bg-blue-600 hover:bg-blue-500 border-blue-500' : 'bg-slate-800 text-slate-500 border-slate-700 cursor-not-allowed'} transition-all active:scale-90`;
             }
 
             const vArr = Object.values(state.votes).filter(p => typeof p.value === 'number').map(p => p.value);
@@ -191,13 +207,24 @@
         });
 
         function mainAction() {
-            if(!isVisible) socket.emit('reveal_votes', currentRoom);
-            else {
+            const allVoted = Object.values(lastState.votes).every(p => p.value !== null);
+            
+            if(!isVisible) {
+                if(!allVoted) {
+                    const btn = document.getElementById('mainBtn');
+                    btn.classList.add('shake', 'bg-red-900/50', 'text-red-200');
+                    setTimeout(() => btn.classList.remove('shake', 'bg-red-900/50', 'text-red-200'), 400);
+                    showToast("Faltan compañeros por votar", "error");
+                    return;
+                }
+                socket.emit('reveal_votes', currentRoom);
+            } else {
                 let t = document.getElementById('taskInput').value;
                 let next = t.replace(/\d+$/, (n) => parseInt(n) + 1);
                 if(next === t) next += " 2";
                 socket.emit('update_task', { roomId: currentRoom, taskName: next });
                 socket.emit('reset_game', currentRoom);
+                showToast("Nueva ronda iniciada");
             }
         }
 
@@ -214,14 +241,7 @@
             p.className = "projectile"; p.innerText = emoji;
             p.style.left = fromPos.x + "px"; p.style.top = fromPos.y + "px";
             document.body.appendChild(p);
-
-            // Viaje hacia el impacto
-            setTimeout(() => { 
-                p.style.left = (rect.left + 15) + "px"; 
-                p.style.top = (rect.top + 15) + "px"; 
-            }, 20);
-
-            // Rebote y caída
+            setTimeout(() => { p.style.left = (rect.left + 15) + "px"; p.style.top = (rect.top + 15) + "px"; }, 20);
             setTimeout(() => {
                 p.classList.add('rebound');
                 if(socket.id === toSocketId) {
@@ -232,22 +252,21 @@
                     }
                 }
             }, 420);
-
             setTimeout(() => { p.remove(); }, 1200);
         });
 
         function copyLink() {
             navigator.clipboard.writeText(`${window.location.origin}/?room=${currentRoom}`);
-            const t = document.querySelector('button[onclick="copyLink()"] span:last-child');
-            const old = t.innerText;
-            t.innerText = "¡COPIADO!";
-            setTimeout(() => t.innerText = old, 1500);
+            showToast("Enlace de invitación copiado");
         }
 
-        function updateTask() { socket.emit('update_task', { roomId: currentRoom, taskName: document.getElementById('taskInput').value }); }
+        function updateTask() { 
+            socket.emit('update_task', { roomId: currentRoom, taskName: document.getElementById('taskInput').value }); 
+            showToast("Nombre de tarea actualizado");
+        }
         
         function exportCSV() {
-            if(!lastState.history?.length) return alert("No hay rondas grabadas.");
+            if(!lastState.history?.length) { showToast("No hay historial para exportar", "error"); return; }
             let csv = "Ronda,Tarea,Jugador,Voto\n";
             lastState.history.forEach((r, i) => {
                 Object.entries(r.results).forEach(([n, v]) => csv += `${i+1},${r.task},${n},${v}\n`);
@@ -256,6 +275,7 @@
             const u = URL.createObjectURL(b);
             const a = document.createElement('a');
             a.href = u; a.download = `poker-${currentRoom}.csv`; a.click();
+            showToast("CSV descargado con éxito");
         }
     </script>
 </body>
