@@ -1,7 +1,7 @@
 {
-  "name": "minimal-planning-poker",
+  "name": "clon-planning-poker",
   "version": "1.0.0",
-  "description": "Una herramienta de Planning Poker simple con salas",
+  "description": "Sistema de votación ágil con salas y nombres",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"
@@ -9,8 +9,5 @@
   "dependencies": {
     "express": "^4.18.2",
     "socket.io": "^4.7.2"
-  },
-  "engines": {
-    "node": ">=14.0.0"
   }
 }
