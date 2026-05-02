@@ -314,6 +314,7 @@
 
         /* ── PLAYER SPOTS ── */
         #grid { position: absolute; inset: 0; pointer-events: none; }
+        #grid .playing-card { pointer-events: auto; }
         .player-spot {
             position: absolute; transform: translate(-50%,-50%);
             z-index: 50; display: flex; flex-direction: column;
@@ -376,8 +377,9 @@
 
         /* ── TOAST ── */
         #toast-container {
-            position: fixed; top: 1.25rem; right: 1.25rem; z-index: 500;
+            position: fixed; top: 1.25rem; left: 50%; transform: translateX(-50%); z-index: 500;
             display: flex; flex-direction: column; gap: 0.5rem; pointer-events: none;
+            align-items: center; width: max-content; max-width: 90vw;
         }
         .toast {
             background: var(--surface-2); border: 1px solid var(--surface-3);
@@ -701,9 +703,15 @@
     });
 
     socket.on('update_state', (state) => {
+        // If cards just got revealed and btn isn't already locked, lock for all clients
+        const justRevealed = state.visible && !lastState.visible;
         lastState = state;
         renderPlayers(state);
-        renderCenter(state);
+        if (justRevealed && !btnLocked) {
+            lockBtn(2000);
+        } else {
+            renderCenter(state);
+        }
         renderVoteCounter(state);
         syncDeckHighlight(state);
         document.getElementById('taskInput').value = state.taskName;
@@ -735,15 +743,11 @@
             spot.style.top = `${y}px`;
             spot.id = `p-${id}`;
             spot.innerHTML = `
-                <div class="playing-card ${cardClass}" data-id="${id}">
+                <div class="playing-card ${cardClass}" data-playerid="${id}" style="cursor:${isMe ? 'default' : 'pointer'}">
                     ${cardContent}
                 </div>
                 <span class="player-name${isMe ? ' is-me' : ''}">${p.name}${isMe ? ' ·vos' : ''}</span>
             `;
-            // Emoji click only on other players' cards
-            if (!isMe) {
-                spot.querySelector('.playing-card').addEventListener('click', (e) => sendEmoji(id, e));
-            }
             grid.appendChild(spot);
         });
     }
@@ -842,6 +846,15 @@
     }
 
     // ── EMOJI ─────────────────────────────────────────────────────────────
+    // Grid-level delegation so pointer-events on cards work correctly
+    document.getElementById('grid').addEventListener('click', (e) => {
+        const card = e.target.closest('[data-playerid]');
+        if (!card) return;
+        const toId = card.dataset.playerid;
+        if (toId === socket.id) return; // don't throw at yourself
+        socket.emit('send_emoji', { toSocketId: toId, emoji: selectedEmoji, fromPos: { x: e.clientX, y: e.clientY } });
+    });
+
     function selectEmoji(emoji, el) {
         selectedEmoji = emoji;
         document.querySelectorAll('.emoji-btn').forEach(b => b.classList.remove('active-emoji'));
@@ -882,11 +895,9 @@
         setTimeout(() => { p.style.left = (rect.left + 14) + 'px'; p.style.top = (rect.top + 14) + 'px'; }, 20);
         setTimeout(() => {
             p.classList.add('rebound');
-            // find if toSocketId belongs to me by name matching
-            const meEntry = Object.entries(lastState.votes || {}).find(([, p]) => p.name === myName);
-            if (meEntry && meEntry[0] === toSocketId) {
+            if (toSocketId === socket.id) {
                 attackHits++;
-                if (attackHits > 7) {
+                if (attackHits >= 10) {
                     document.body.classList.add('buzz');
                     setTimeout(() => { document.body.classList.remove('buzz'); attackHits = 0; }, 800);
                 }
