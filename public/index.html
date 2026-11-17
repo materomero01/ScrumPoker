@@ -2,956 +2,203 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="color-scheme" content="dark">
+    <meta name="theme-color" content="#0f2a24">
+    <meta name="description" content="Planning Poker en tiempo real para equipos ágiles.">
     <title>Scrum Poker</title>
-    <script src="/socket.io/socket.io.js"></script>
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml">
     <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800;900&family=DM+Mono:wght@400;500&family=Bebas+Neue&display=swap" rel="stylesheet">
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script type="module" src="https://cdn.jsdelivr.net/npm/emoji-picker-element@1/index.js"></script>
-    <style>
-        :root {
-            --table-size: clamp(260px, 52vmin, 460px);
-            --accent: #3b82f6;
-            --accent-glow: rgba(59,130,246,0.25);
-            --surface: #0f172a;
-            --surface-2: #1e293b;
-            --surface-3: #334155;
-            --text-muted: #64748b;
-            --green: #22c55e;
-            --red: #ef4444;
-            --yellow: #eab308;
-        }
-
-        * { box-sizing: border-box; }
-
-        body {
-            font-family: 'DM Mono', monospace;
-            user-select: none; -webkit-user-select: none;
-            background: #020917;
-            background-image:
-                radial-gradient(ellipse 80% 50% at 50% -20%, rgba(59,130,246,0.08) 0%, transparent 60%),
-                repeating-linear-gradient(0deg, transparent, transparent 39px, rgba(255,255,255,0.015) 40px),
-                repeating-linear-gradient(90deg, transparent, transparent 39px, rgba(255,255,255,0.015) 40px);
-            height: 100dvh;
-            display: flex;
-            flex-direction: column;
-            overflow: hidden;
-            color: white;
-        }
-
-        /* ── SCREENS ── */
-        .screen { display: none; }
-        .screen.active { display: flex; }
-
-        /* ── LOBBY (create or join) ── */
-        #screen-lobby {
-            position: fixed; inset: 0; z-index: 300;
-            background: #020917;
-            align-items: center; justify-content: center;
-            padding: 1.5rem;
-        }
-        .lobby-card {
-            background: var(--surface);
-            border: 1px solid var(--surface-3);
-            border-radius: 2rem;
-            padding: 2.5rem 2rem;
-            width: 100%; max-width: 380px;
-            text-align: center;
-            box-shadow: 0 0 80px rgba(59,130,246,0.07);
-        }
-        .lobby-logo {
-            font-family: 'Syne', sans-serif;
-            font-weight: 900;
-            font-size: 2rem;
-            letter-spacing: -0.04em;
-            background: linear-gradient(135deg, #60a5fa, #3b82f6, #1d4ed8);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            margin-bottom: 0.2rem;
-        }
-        .lobby-sub {
-            font-size: 0.65rem;
-            color: var(--text-muted);
-            letter-spacing: 0.15em;
-            text-transform: uppercase;
-            margin-bottom: 2rem;
-        }
-        .lobby-input {
-            width: 100%;
-            padding: 0.85rem 1.1rem;
-            background: var(--surface-2);
-            border: 1px solid var(--surface-3);
-            border-radius: 0.875rem;
-            color: white;
-            font-family: 'DM Mono', monospace;
-            font-size: 0.875rem;
-            outline: none;
-            text-align: center;
-            transition: border-color 0.2s, box-shadow 0.2s;
-            margin-bottom: 0.75rem;
-        }
-        .lobby-input:focus {
-            border-color: var(--accent);
-            box-shadow: 0 0 0 3px var(--accent-glow);
-        }
-        .lobby-divider {
-            display: flex; align-items: center; gap: 0.75rem;
-            margin: 1.25rem 0;
-            color: var(--text-muted);
-            font-size: 0.65rem;
-            letter-spacing: 0.12em;
-            text-transform: uppercase;
-        }
-        .lobby-divider::before, .lobby-divider::after {
-            content: ''; flex: 1; height: 1px; background: var(--surface-3);
-        }
-        .btn-primary {
-            width: 100%; padding: 0.85rem;
-            background: var(--accent);
-            border: none; border-radius: 0.875rem;
-            color: white;
-            font-family: 'Syne', sans-serif;
-            font-weight: 800; font-size: 0.875rem;
-            letter-spacing: 0.04em;
-            cursor: pointer;
-            transition: background 0.2s, transform 0.1s, box-shadow 0.2s;
-            margin-bottom: 0.6rem;
-        }
-        .btn-primary:hover { background: #2563eb; box-shadow: 0 0 20px rgba(59,130,246,0.3); }
-        .btn-primary:active { transform: scale(0.97); }
-        .btn-secondary {
-            width: 100%; padding: 0.85rem;
-            background: transparent;
-            border: 1px solid var(--surface-3);
-            border-radius: 0.875rem;
-            color: var(--text-muted);
-            font-family: 'Syne', sans-serif;
-            font-weight: 700; font-size: 0.875rem;
-            letter-spacing: 0.04em;
-            cursor: pointer;
-            transition: background 0.2s, color 0.2s, border-color 0.2s;
-        }
-        .btn-secondary:hover { background: var(--surface-2); color: white; border-color: var(--accent); }
-        .btn-secondary:active { transform: scale(0.97); }
-
-        /* Room code display in lobby (join mode) */
-        .room-badge {
-            display: inline-flex; align-items: center; gap: 0.5rem;
-            background: var(--surface-2);
-            border: 1px solid var(--surface-3);
-            border-radius: 0.75rem;
-            padding: 0.5rem 1rem;
-            font-family: 'Syne', sans-serif;
-            font-size: 1.1rem;
-            font-weight: 900;
-            letter-spacing: 0.12em;
-            color: #60a5fa;
-            margin-bottom: 1.25rem;
-        }
-
-        /* ── ERROR SCREEN ── */
-        #screen-error {
-            position: fixed; inset: 0; z-index: 400;
-            background: #020917;
-            align-items: center; justify-content: center;
-            padding: 1.5rem;
-        }
-        .error-card {
-            background: var(--surface);
-            border: 1px solid rgba(239,68,68,0.3);
-            border-radius: 2rem;
-            padding: 2.5rem 2rem;
-            width: 100%; max-width: 340px;
-            text-align: center;
-        }
-        .error-icon { font-size: 2.5rem; margin-bottom: 1rem; }
-        .error-title {
-            font-family: 'Syne', sans-serif;
-            font-weight: 900; font-size: 1.2rem;
-            color: var(--red); margin-bottom: 0.5rem;
-        }
-        .error-msg {
-            font-size: 0.75rem; color: var(--text-muted);
-            margin-bottom: 1.5rem; line-height: 1.6;
-        }
-
-        /* ── HEADER ── */
-        header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 0.75rem 1.25rem;
-            border-bottom: 1px solid rgba(255,255,255,0.04);
-            flex-shrink: 0;
-            gap: 0.75rem;
-        }
-        .header-left { display: flex; flex-direction: column; gap: 0.2rem; min-width: 0; }
-        .brand {
-            font-family: 'Syne', sans-serif;
-            font-weight: 900; font-size: 0.95rem;
-            letter-spacing: -0.02em; color: #60a5fa;
-            text-transform: uppercase;
-            display: flex; align-items: center; gap: 0.4rem;
-        }
-        .room-pill {
-            font-family: 'DM Mono', monospace;
-            font-size: 0.6rem; font-weight: 500;
-            color: var(--text-muted);
-            background: var(--surface-2);
-            border: 1px solid var(--surface-3);
-            border-radius: 0.4rem;
-            padding: 0.15rem 0.5rem;
-            letter-spacing: 0.1em;
-        }
-        #taskInput {
-            background: transparent;
-            border: none;
-            border-bottom: 1px solid var(--surface-3);
-            color: var(--text-muted);
-            font-family: 'DM Mono', monospace;
-            font-size: 0.75rem; outline: none;
-            padding: 0.2rem 0; width: 180px;
-            transition: color 0.2s, border-color 0.2s;
-        }
-        #taskInput:focus { color: white; border-color: var(--accent); }
-
-        .header-right { display: flex; align-items: center; gap: 0.5rem; flex-shrink: 0; }
-        .emoji-strip {
-            display: flex;
-            background: var(--surface);
-            border: 1px solid var(--surface-3);
-            border-radius: 0.75rem;
-            padding: 0.2rem; gap: 0.1rem;
-        }
-        .emoji-btn {
-            width: 2rem; height: 2rem;
-            border-radius: 0.5rem;
-            display: flex; align-items: center; justify-content: center;
-            font-size: 1rem; cursor: pointer;
-            transition: background 0.15s, transform 0.1s;
-            border: none; background: transparent;
-        }
-        .emoji-btn:hover { background: var(--surface-2); transform: scale(1.15); }
-        .emoji-btn.active-emoji { background: var(--accent); }
-        .icon-btn {
-            display: flex; align-items: center; gap: 0.4rem;
-            background: var(--surface);
-            border: 1px solid var(--surface-3);
-            border-radius: 0.75rem;
-            padding: 0.45rem 0.75rem;
-            color: var(--text-muted);
-            font-family: 'DM Mono', monospace;
-            font-size: 0.65rem; letter-spacing: 0.08em;
-            text-transform: uppercase; cursor: pointer;
-            transition: background 0.15s, color 0.15s;
-        }
-        .icon-btn:hover { background: var(--surface-2); color: white; }
-        .icon-btn:active { transform: scale(0.96); }
-
-        /* ── TABLE ── */
-        .table-wrapper {
-            flex: 1;
-            display: flex; align-items: center; justify-content: center;
-            position: relative; min-height: 0;
-        }
-        .table-ring {
-            position: relative;
-            width: var(--table-size); height: var(--table-size);
-            border-radius: 50%;
-            background: radial-gradient(circle at 40% 35%, #0f1f3d 0%, #060e1f 60%, #020917 100%);
-            border: 1.5px solid rgba(59,130,246,0.15);
-            box-shadow: 0 0 0 1px rgba(59,130,246,0.05), 0 0 80px rgba(59,130,246,0.04), inset 0 0 60px rgba(0,0,0,0.6);
-            display: flex; align-items: center; justify-content: center;
-        }
-        .table-center-content {
-            z-index: 10;
-            display: flex; flex-direction: column;
-            align-items: center; gap: 0.5rem;
-            text-align: center; padding: 1rem;
-        }
-        .vote-counter {
-            font-size: 0.65rem; letter-spacing: 0.12em;
-            text-transform: uppercase; color: var(--text-muted);
-            display: flex; align-items: center; gap: 0.5rem;
-        }
-        .vote-dots { display: flex; gap: 3px; }
-        .vote-dot {
-            width: 6px; height: 6px; border-radius: 50%;
-            background: var(--surface-3);
-            transition: background 0.3s, transform 0.3s;
-        }
-        .vote-dot.voted { background: var(--green); transform: scale(1.2); }
-
-        #mainBtn {
-            font-family: 'Syne', sans-serif;
-            font-weight: 800; font-size: 0.7rem;
-            letter-spacing: 0.1em; text-transform: uppercase;
-            padding: 0.75rem 1.25rem;
-            border-radius: 1rem; border: 1.5px solid transparent;
-            cursor: pointer; transition: all 0.25s;
-            min-width: 90px; position: relative; overflow: hidden;
-        }
-        #mainBtn.state-waiting  { background: var(--surface-2); border-color: var(--surface-3); color: var(--text-muted); cursor: not-allowed; }
-        #mainBtn.state-ready    { background: linear-gradient(135deg,#2563eb,#1d4ed8); border-color: rgba(96,165,250,0.4); color: white; box-shadow: 0 0 20px rgba(59,130,246,0.3); }
-        #mainBtn.state-ready:hover { box-shadow: 0 0 30px rgba(59,130,246,0.5); transform: translateY(-1px); }
-        #mainBtn.state-next     { background: linear-gradient(135deg,#16a34a,#15803d); border-color: rgba(34,197,94,0.4); color: white; box-shadow: 0 0 20px rgba(34,197,94,0.25); }
-        #mainBtn.state-next:hover { box-shadow: 0 0 30px rgba(34,197,94,0.4); transform: translateY(-1px); }
-        #mainBtn.state-locked   { background: var(--surface-2); border-color: var(--surface-3); color: var(--text-muted); cursor: not-allowed; transform: none !important; }
-        #mainBtn.state-locked::after {
-            content: ''; position: absolute; inset: 0;
-            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.06), transparent);
-            animation: shimmer 1.2s infinite;
-        }
-        @keyframes shimmer { from { transform: translateX(-100%); } to { transform: translateX(100%); } }
-
-        #avg {
-            font-family: 'Syne', sans-serif;
-            font-weight: 900; font-size: 2.2rem;
-            letter-spacing: -0.04em; color: #60a5fa;
-            line-height: 1; min-height: 2.2rem;
-        }
-
-        /* ── PLAYER SPOTS ── */
-        #grid { position: absolute; inset: 0; pointer-events: none; }
-        #grid .playing-card { pointer-events: auto; }
-        .player-spot {
-            position: absolute; transform: translate(-50%,-50%);
-            z-index: 50; display: flex; flex-direction: column;
-            align-items: center; gap: 4px;
-        }
-        .playing-card {
-            width: 2.8rem; height: 3.9rem; border-radius: 0.5rem;
-            display: flex; align-items: center; justify-content: center;
-            /* ── CAMBIO: Bebas Neue para los números, más grande y fácil de leer ── */
-            font-family: 'Bebas Neue', 'Syne', sans-serif;
-            font-weight: 400;
-            font-size: 1.5rem;
-            letter-spacing: 0.02em;
-            transition: all 0.35s cubic-bezier(0.175,0.885,0.32,1.275);
-            cursor: pointer;
-        }
-        .card-empty    { background: transparent; border: 1.5px dashed var(--surface-3); color: transparent; }
-        .card-voted    { background: linear-gradient(135deg,#1d4ed8,#1e40af); border: 1.5px solid rgba(96,165,250,0.35); color: white; box-shadow: 0 4px 12px rgba(30,64,175,0.4); }
-        .card-revealed { background: white; border: 1.5px solid rgba(255,255,255,0.6); color: #1d4ed8; box-shadow: 0 6px 16px rgba(0,0,0,0.4); transform: scale(1.05); }
-        /* ── CAMBIO: nombre sin corte, wrap multilínea, ancho más generoso ── */
-        .player-name {
-            font-size: 0.55rem; font-weight: 500; color: var(--text-muted);
-            text-transform: uppercase; letter-spacing: 0.08em;
-            max-width: 72px;
-            white-space: normal;
-            word-break: break-word;
-            text-align: center;
-            line-height: 1.3;
-        }
-        .player-name.is-me { color: #60a5fa; }
-
-        /* ── COPY LINK ── */
-        .copy-link-btn {
-            position: absolute; bottom: 1rem; left: 1rem;
-            display: flex; align-items: center; gap: 0.4rem;
-            background: rgba(30,41,59,0.9);
-            border: 1px solid var(--surface-3); border-radius: 0.75rem;
-            padding: 0.5rem 0.875rem;
-            font-family: 'DM Mono', monospace;
-            font-size: 0.65rem; font-weight: 500;
-            letter-spacing: 0.08em; text-transform: uppercase;
-            color: var(--text-muted); cursor: pointer;
-            transition: all 0.2s; backdrop-filter: blur(8px);
-        }
-        .copy-link-btn:hover { background: var(--surface-2); color: white; border-color: var(--accent); }
-        .copy-link-btn:active { transform: scale(0.96); }
-
-        /* ── DECK ── */
-        .deck-wrapper { flex-shrink: 0; display: flex; justify-content: center; padding: 0 1rem 1rem; }
-        #deck {
-            display: flex; gap: 0.4rem; padding: 0.75rem;
-            background: var(--surface); border: 1px solid var(--surface-3);
-            border-radius: 1.25rem; overflow-x: auto; max-width: 95vw;
-            scrollbar-width: none;
-        }
-        #deck::-webkit-scrollbar { display: none; }
-        .deck-card {
-            width: 2.75rem; height: 3.75rem;
-            background: white; color: #0f172a; border-radius: 0.5rem;
-            display: flex; align-items: center; justify-content: center;
-            /* ── CAMBIO: misma fuente que las cartas de la mesa ── */
-            font-family: 'Bebas Neue', 'Syne', sans-serif;
-            font-weight: 400;
-            font-size: 1.6rem;
-            letter-spacing: 0.02em;
-            flex-shrink: 0; cursor: pointer;
-            border-bottom: 3px solid #cbd5e1;
-            transition: transform 0.2s cubic-bezier(0.175,0.885,0.32,1.275), box-shadow 0.2s, border-color 0.2s, background 0.2s;
-        }
-        .deck-card:hover { transform: translateY(-8px); box-shadow: 0 12px 20px rgba(0,0,0,0.4); }
-        .deck-card:active { transform: translateY(-4px); }
-        .deck-card.selected { background: #1d4ed8; color: white; border-bottom-color: #1e40af; box-shadow: 0 0 20px rgba(59,130,246,0.5); }
-
-        /* ── TOAST ── */
-        #toast-container {
-            position: fixed; top: 1.25rem; left: 50%; transform: translateX(-50%); z-index: 500;
-            display: flex; flex-direction: column; gap: 0.5rem; pointer-events: none;
-            align-items: center; width: max-content; max-width: 90vw;
-        }
-        .toast {
-            background: var(--surface-2); border: 1px solid var(--surface-3);
-            border-left: 3px solid var(--accent); color: white;
-            padding: 0.6rem 1rem; border-radius: 0.75rem;
-            font-family: 'DM Mono', monospace; font-size: 0.72rem; font-weight: 500;
-            box-shadow: 0 8px 24px rgba(0,0,0,0.3);
-            animation: toastIn 0.3s cubic-bezier(0.175,0.885,0.32,1.275) forwards;
-            transition: opacity 0.3s;
-        }
-        .toast.error   { border-left-color: var(--red); }
-        .toast.warn    { border-left-color: var(--yellow); }
-        .toast.success { border-left-color: var(--green); }
-        @keyframes toastIn { from { transform: translateX(110%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
-
-        /* ── RECONNECT BANNER ── */
-        #reconnect-banner {
-            display: none; position: fixed; top: 0; left: 0; right: 0; z-index: 400;
-            background: rgba(239,68,68,0.9); backdrop-filter: blur(8px);
-            text-align: center; padding: 0.5rem;
-            font-family: 'DM Mono', monospace; font-size: 0.72rem; letter-spacing: 0.08em;
-        }
-        #reconnect-banner.visible { display: block; }
-
-        /* ── EMOJI PICKER ── */
-        #emoji-picker-container {
-            display: none; position: fixed; top: 56px; right: 1rem; z-index: 200;
-            border-radius: 1rem; overflow: hidden; box-shadow: 0 20px 40px rgba(0,0,0,0.5);
-        }
-
-        /* ── PROJECTILE ── */
-        .projectile {
-            position: fixed; pointer-events: none; z-index: 999;
-            font-size: 2rem;
-            transition: left 0.38s linear, top 0.38s cubic-bezier(0.1,0.2,0.3,1);
-        }
-        .rebound { animation: fall-roll 0.75s ease-in forwards; }
-        @keyframes fall-roll {
-            0%   { transform: rotate(0); opacity: 1; }
-            40%  { transform: translate(12px,-18px) rotate(50deg); opacity: 1; }
-            100% { transform: translate(25px,55px) rotate(200deg); opacity: 0; }
-        }
-
-        /* ── MISC ── */
-        .buzz { animation: buzz 0.08s 10 alternate; }
-        @keyframes buzz { from { transform: translate(-3px,-3px); } to { transform: translate(3px,3px); } }
-        .shake { animation: shake 0.35s ease; }
-        @keyframes shake { 0%,100% { transform: translateX(0); } 25% { transform: translateX(-6px); } 75% { transform: translateX(6px); } }
-        .pop-in { animation: popIn 0.4s cubic-bezier(0.175,0.885,0.32,1.275) forwards; }
-        @keyframes popIn {
-            from { transform: translate(-50%,-50%) scale(0.5); opacity: 0; }
-            to   { transform: translate(-50%,-50%) scale(1); opacity: 1; }
-        }
-
-        /* Loading spinner */
-        .spinner {
-            width: 20px; height: 20px; border-radius: 50%;
-            border: 2px solid var(--surface-3); border-top-color: var(--accent);
-            animation: spin 0.7s linear infinite; display: inline-block;
-        }
-        @keyframes spin { to { transform: rotate(360deg); } }
-    </style>
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400..800&family=Instrument+Sans:wght@400..700&display=swap">
+    <link rel="stylesheet" href="/css/app.css">
+    <script src="/socket.io/socket.io.js" defer></script>
+    <script type="module" src="/js/main.js"></script>
 </head>
 <body>
 
-<div id="reconnect-banner">⚡ Reconectando...</div>
-<div id="toast-container"></div>
+<div id="offline-banner" class="offline-banner" role="status" hidden>Sin conexión. Reconectando…</div>
+<div id="toasts" class="toasts" role="status" aria-live="polite"></div>
+<div id="announcer" class="visually-hidden" aria-live="assertive"></div>
 
-<!-- ── LOBBY SCREEN ── -->
-<div id="screen-lobby" class="screen active">
-    <div class="lobby-card">
-        <div class="lobby-logo">Scrum Poker</div>
-        <div class="lobby-sub">Planning Poker · Team Edition</div>
+<!-- ── LOBBY ─────────────────────────────────────────────────────────── -->
+<main id="screen-lobby" class="screen lobby" hidden>
+    <div class="lobby-hand" aria-hidden="true">
+        <span class="mini-card">3</span>
+        <span class="mini-card">5</span>
+        <span class="mini-card">8</span>
+    </div>
+    <h1 class="lobby-title">Scrum Poker</h1>
+    <p class="lobby-lead">Estimen juntos, en tiempo real, sin anclarse en el primer número.</p>
 
-        <!-- Name input (always shown) -->
-        <input type="text" id="lobbyName" class="lobby-input" placeholder="Tu nombre" maxlength="24" autocomplete="off">
+    <form id="lobby-form" class="lobby-form" novalidate>
+        <p id="invite" class="invite" hidden>Te invitaron a la sala <strong id="invite-code"></strong></p>
 
-        <!-- If entering with a room link, show badge + join button -->
-        <div id="join-section" style="display:none">
-            <div style="margin-bottom:0.75rem; font-size:0.7rem; color:var(--text-muted); letter-spacing:0.08em;">
-                Entrando a la sala
+        <label class="field">
+            <span class="field-label">Tu nombre</span>
+            <input id="lobby-name" name="name" type="text" maxlength="24" autocomplete="nickname" required>
+        </label>
+
+        <label class="check">
+            <input id="lobby-observer" type="checkbox">
+            <span>Entrar como observador (no voto)</span>
+        </label>
+
+        <button id="btn-primary-lobby" class="btn btn-brass btn-block" type="submit">Crear sala</button>
+
+        <div id="join-by-code" class="join-by-code">
+            <span class="or">o entrá con un código</span>
+            <div class="code-row">
+                <label class="visually-hidden" for="lobby-code">Código de sala</label>
+                <input id="lobby-code" type="text" inputmode="text" maxlength="5" autocomplete="off"
+                       autocapitalize="characters" spellcheck="false" placeholder="ABCDE" pattern="[A-Za-z0-9]{5}">
+                <button id="btn-join-code" class="btn btn-ghost" type="button">Entrar</button>
             </div>
-            <div class="room-badge" id="joining-room-badge">···</div>
-            <button class="btn-primary" onclick="doJoin()">Unirse a la Sala</button>
         </div>
+        <button id="btn-new-instead" class="link-btn" type="button" hidden>Prefiero crear una sala nueva</button>
+        <p id="lobby-error" class="form-error" role="alert" hidden></p>
+    </form>
+</main>
 
-        <!-- Otherwise, create new room -->
-        <div id="create-section">
-            <button class="btn-primary" id="createBtn" onclick="doCreate()">Crear Nueva Sala</button>
-            <div class="lobby-divider">o</div>
-            <div style="display:flex; gap:0.5rem;">
-                <input type="text" id="roomCodeInput" class="lobby-input" style="margin:0; flex:1; font-size:0.8rem; letter-spacing:0.1em; text-transform:uppercase;"
-                    placeholder="CÓDIGO DE SALA" maxlength="5" autocomplete="off">
-                <button class="btn-secondary" style="width:auto; padding:0 1rem; margin:0;" onclick="doJoinCode()">Entrar</button>
-            </div>
-        </div>
+<!-- ── AVISOS (expulsado, otra pestaña, sala inexistente) ────────────── -->
+<main id="screen-notice" class="screen notice" hidden>
+    <h1 id="notice-title" class="notice-title"></h1>
+    <p id="notice-body" class="notice-body"></p>
+    <div class="notice-actions">
+        <button id="notice-primary" class="btn btn-brass" type="button"></button>
+        <button id="notice-secondary" class="btn btn-ghost" type="button" hidden></button>
     </div>
-</div>
+</main>
 
-<!-- ── ERROR SCREEN ── -->
-<div id="screen-error" class="screen">
-    <div class="error-card">
-        <div class="error-icon">🚫</div>
-        <div class="error-title">Sala no encontrada</div>
-        <div class="error-msg" id="errorMsg">
-            Esta sala no existe o expiró.<br>Creá una nueva o pedile el enlace actualizado a tu equipo.
+<!-- ── JUEGO ─────────────────────────────────────────────────────────── -->
+<div id="screen-game" class="screen game" hidden>
+    <header class="topbar">
+        <div class="topbar-id">
+            <span class="brand" aria-hidden="true">SP</span>
+            <button id="btn-room" class="room-chip" type="button" aria-label="Copiar enlace de invitación">
+                <span class="room-chip-label">Sala</span>
+                <span id="room-code" class="room-chip-code"></span>
+                <svg aria-hidden="true" viewBox="0 0 16 16" width="14" height="14"><path fill="currentColor" d="M5 2h7a2 2 0 0 1 2 2v7h-2V4H5zM2 6a2 2 0 0 1 2-2h5a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2zm2 0v6h5V6z"/></svg>
+            </button>
         </div>
-        <button class="btn-primary" onclick="goToCreate()">Crear Nueva Sala</button>
-    </div>
-</div>
 
-<!-- ── GAME (header + table + deck) ── -->
-<header id="game-header" style="display:none">
-    <div class="header-left">
-        <div class="brand">
-            Scrum Poker
-            <span class="room-pill" id="roomPill">···</span>
-        </div>
-        <input type="text" id="taskInput" onchange="updateTask()" placeholder="Nombre de la tarea..." maxlength="60">
-    </div>
-    <div class="header-right">
-        <div class="emoji-strip" id="emojiStrip">
-            <button class="emoji-btn active-emoji" onclick="selectEmoji('📄', this)">📄</button>
-            <button class="emoji-btn" onclick="selectEmoji('✈️', this)">✈️</button>
-            <button class="emoji-btn" onclick="selectEmoji('🔫', this)">🔫</button>
-            <button class="emoji-btn" onclick="selectEmoji('🍅', this)">🍅</button>
-            <button class="emoji-btn" onclick="toggleEmojiPicker()">＋</button>
-        </div>
-        <button class="icon-btn" onclick="exportCSV()">⬇ CSV</button>
-    </div>
-</header>
+        <label class="task">
+            <span class="task-label">Estimando</span>
+            <input id="task-input" type="text" maxlength="80" autocomplete="off" spellcheck="false">
+        </label>
 
-<div id="emoji-picker-container"><emoji-picker></emoji-picker></div>
+        <nav class="topbar-actions" aria-label="Acciones de la sala">
+            <button id="btn-timer" class="tool" type="button">
+                <svg aria-hidden="true" viewBox="0 0 24 24" width="18" height="18"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" d="M12 8v5l3 2M9 2h6M12 4a9 9 0 1 0 0 18 9 9 0 0 0 0-18z"/></svg>
+                <span class="tool-text">Reloj</span>
+            </button>
+            <button id="btn-history" class="tool" type="button">
+                <svg aria-hidden="true" viewBox="0 0 24 24" width="18" height="18"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" d="M4 6h16M4 12h16M4 18h10"/></svg>
+                <span class="tool-text">Historial</span>
+                <span id="history-count" class="tool-badge" hidden></span>
+            </button>
+            <button id="btn-settings" class="tool" type="button">
+                <svg aria-hidden="true" viewBox="0 0 24 24" width="18" height="18"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" d="M4 7h10M18 7h2M4 17h4M12 17h8M16 4v6M10 14v6"/></svg>
+                <span class="tool-text">Sala</span>
+            </button>
+        </nav>
+    </header>
 
-<div class="table-wrapper" id="game-table" style="display:none">
-    <div class="table-ring">
-        <div id="grid" class="absolute inset-0 w-full h-full pointer-events-none"></div>
-        <div class="table-center-content">
-            <div id="voteCounter" class="vote-counter">
-                <span id="voteText">0 / 0</span>
-                <div class="vote-dots" id="voteDots"></div>
-            </div>
-            <button id="mainBtn" class="state-waiting" onclick="mainAction()">REVELAR<br>CARTAS</button>
-            <div id="avg"></div>
-        </div>
-    </div>
-    <button class="copy-link-btn" onclick="copyLink()">
-        <span>🔗</span><span>Copiar Enlace</span>
-    </button>
-</div>
-
-<div class="deck-wrapper" id="game-deck" style="display:none">
-    <div id="deck"></div>
-</div>
-
-<script>
-    // ── STATE ──────────────────────────────────────────────────────────────
-    const socket = io({ reconnectionDelay: 1000, reconnectionDelayMax: 5000, autoConnect: true });
-
-    let currentRoomId = null;
-    let myName = null;
-    let myVote = null;
-    let lastState = {};
-    let btnLocked = false;
-    let attackHits = 0;
-    let selectedEmoji = '📄';
-
-    // ── URL ROOM DETECTION ────────────────────────────────────────────────
-    function getRoomFromURL() {
-        return new URLSearchParams(window.location.search).get('room');
-    }
-
-    function setRoomInURL(roomId) {
-        const url = new URL(window.location.href);
-        url.searchParams.set('room', roomId);
-        window.history.replaceState({}, '', url.toString());
-    }
-
-    function clearRoomFromURL() {
-        const url = new URL(window.location.href);
-        url.searchParams.delete('room');
-        window.history.replaceState({}, '', url.toString());
-    }
-
-    // ── INIT ──────────────────────────────────────────────────────────────
-    window.addEventListener('load', () => {
-        const roomInURL = getRoomFromURL();
-        if (roomInURL) {
-            // Pre-fill badge and show join section
-            document.getElementById('joining-room-badge').innerText = roomInURL.toUpperCase();
-            document.getElementById('join-section').style.display = 'block';
-            document.getElementById('create-section').style.display = 'none';
-        }
-        // Focus name input
-        setTimeout(() => document.getElementById('lobbyName').focus(), 100);
-    });
-
-    // Enter key on name field
-    document.getElementById('lobbyName').addEventListener('keydown', e => {
-        if (e.key === 'Enter') {
-            const roomInURL = getRoomFromURL();
-            roomInURL ? doJoin() : doCreate();
-        }
-    });
-    document.getElementById('roomCodeInput').addEventListener('keydown', e => {
-        if (e.key === 'Enter') doJoinCode();
-    });
-
-    // ── LOBBY ACTIONS ─────────────────────────────────────────────────────
-    async function doCreate() {
-        const name = document.getElementById('lobbyName').value.trim();
-        if (!name) { showToast('Ingresá tu nombre', 'error'); return; }
-
-        const btn = document.getElementById('createBtn');
-        btn.disabled = true;
-        btn.innerHTML = '<span class="spinner"></span>';
-
-        try {
-            const res = await fetch('/api/create-room', { method: 'POST' });
-            const { roomId } = await res.json();
-            setRoomInURL(roomId);
-            enterGame(name, roomId, false);
-        } catch(e) {
-            showToast('Error al crear sala', 'error');
-            btn.disabled = false;
-            btn.innerText = 'Crear Nueva Sala';
-        }
-    }
-
-    function doJoin() {
-        const name = document.getElementById('lobbyName').value.trim();
-        if (!name) { showToast('Ingresá tu nombre', 'error'); return; }
-        const roomId = getRoomFromURL();
-        if (!roomId) { showToast('Código de sala inválido', 'error'); return; }
-        enterGame(name, roomId, false);
-    }
-
-    async function doJoinCode() {
-        const name = document.getElementById('lobbyName').value.trim();
-        const code = document.getElementById('roomCodeInput').value.trim().toLowerCase();
-        if (!name) { showToast('Ingresá tu nombre', 'error'); return; }
-        if (!code || code.length < 3) { showToast('Ingresá un código de sala válido', 'error'); return; }
-
-        // Verify room exists before joining
-        try {
-            const res = await fetch(`/api/room/${code}`);
-            if (!res.ok) {
-                showError(`La sala <strong>${code.toUpperCase()}</strong> no existe o expiró.`);
-                return;
-            }
-            setRoomInURL(code);
-            enterGame(name, code, false);
-        } catch(e) {
-            showToast('Error al verificar sala', 'error');
-        }
-    }
-
-    function goToCreate() {
-        clearRoomFromURL();
-        showScreen('lobby');
-        document.getElementById('join-section').style.display = 'none';
-        document.getElementById('create-section').style.display = 'block';
-    }
-
-    // ── SCREEN MANAGEMENT ─────────────────────────────────────────────────
-    function showScreen(name) {
-        document.getElementById('screen-lobby').classList.toggle('active', name === 'lobby');
-        document.getElementById('screen-error').classList.toggle('active', name === 'error');
-    }
-
-    function showError(msg) {
-        document.getElementById('errorMsg').innerHTML = msg || 'Sala no encontrada.';
-        showScreen('error');
-        document.getElementById('game-header').style.display = 'none';
-        document.getElementById('game-table').style.display = 'none';
-        document.getElementById('game-deck').style.display = 'none';
-    }
-
-    function showGame() {
-        showScreen('none');
-        document.getElementById('game-header').style.display = 'flex';
-        document.getElementById('game-table').style.display = 'flex';
-        document.getElementById('game-deck').style.display = 'flex';
-    }
-
-    // ── ENTER GAME ────────────────────────────────────────────────────────
-    function enterGame(name, roomId, isRejoin) {
-        myName = name;
-        currentRoomId = roomId;
-        document.getElementById('roomPill').innerText = roomId.toUpperCase();
-        showGame();
-        socket.emit(isRejoin ? 'rejoin_game' : 'join_game', { username: name, roomId });
-    }
-
-    // ── SOCKET EVENTS ─────────────────────────────────────────────────────
-    socket.on('connect', () => {
-        document.getElementById('reconnect-banner').classList.remove('visible');
-        // Auto-rejoin if we were in a game
-        if (currentRoomId && myName) {
-            socket.emit('rejoin_game', { username: myName, roomId: currentRoomId });
-        }
-    });
-
-    socket.on('disconnect', () => {
-        document.getElementById('reconnect-banner').classList.add('visible');
-    });
-
-    socket.on('joined', ({ resolvedName, roomId }) => {
-        myName = resolvedName;
-        if (resolvedName !== document.getElementById('lobbyName').value.trim()) {
-            showToast(`Nombre ajustado a: ${resolvedName}`, 'warn');
-        } else {
-            showToast(`Bienvenido, ${resolvedName} 👋`, 'success');
-        }
-    });
-
-    socket.on('room_error', ({ code, roomId }) => {
-        showError(`La sala <strong>${(roomId || '').toUpperCase()}</strong> no existe o expiró.<br>Creá una nueva o pedile el enlace actualizado a tu equipo.`);
-        clearRoomFromURL();
-        currentRoomId = null;
-    });
-
-    socket.on('update_state', (state) => {
-        // If cards just got revealed and btn isn't already locked, lock for all clients
-        const justRevealed = state.visible && !lastState.visible;
-        lastState = state;
-        renderPlayers(state);
-        if (justRevealed && !btnLocked) {
-            lockBtn(2000);
-        } else {
-            renderCenter(state);
-        }
-        renderVoteCounter(state);
-        syncDeckHighlight(state);
-        document.getElementById('taskInput').value = state.taskName;
-    });
-
-    // ── RENDER ────────────────────────────────────────────────────────────
-    function renderPlayers(state) {
-        const grid = document.getElementById('grid');
-        grid.innerHTML = '';
-        const entries = Object.entries(state.votes);
-        const size = document.querySelector('.table-ring').offsetWidth || 300;
-        const radius = (size / 2) * 0.85;
-
-        entries.forEach(([id, p], i) => {
-            const angle = (i * (360 / entries.length) - 90) * (Math.PI / 180);
-            const x = (size / 2) + radius * Math.cos(angle);
-            const y = (size / 2) + radius * Math.sin(angle);
-            const isMe = p.name === myName;
-
-            let cardClass = 'card-empty', cardContent = '';
-            if (p.value !== null) {
-                cardClass = state.visible ? 'card-revealed' : 'card-voted';
-                cardContent = state.visible ? p.value : '✓';
-            }
-
-            const spot = document.createElement('div');
-            spot.className = 'player-spot pop-in';
-            spot.style.left = `${x}px`;
-            spot.style.top = `${y}px`;
-            spot.id = `p-${id}`;
-            spot.innerHTML = `
-                <div class="playing-card ${cardClass}" data-playerid="${id}" style="cursor:${isMe ? 'default' : 'pointer'}">
-                    ${cardContent}
+    <main class="table-area" id="table-area">
+        <div class="table" id="table">
+            <div class="felt">
+                <div class="center" id="center">
+                    <p id="status" class="status"></p>
+                    <div id="results" class="results" hidden>
+                        <p id="result-caption" class="result-caption"></p>
+                        <p id="result-value" class="result-value"></p>
+                        <p id="result-detail" class="result-detail"></p>
+                        <ol id="distribution" class="distribution" aria-label="Distribución de votos"></ol>
+                    </div>
+                    <button id="btn-main" class="btn btn-brass btn-main" type="button"></button>
                 </div>
-                <span class="player-name${isMe ? ' is-me' : ''}">${p.name}${isMe ? ' ·vos' : ''}</span>
-            `;
-            grid.appendChild(spot);
-        });
-    }
+            </div>
+            <ul id="seats" class="seats" aria-label="Jugadores en la mesa"></ul>
+        </div>
+    </main>
 
-    function renderCenter(state) {
-        if (btnLocked) return;
-        const btn = document.getElementById('mainBtn');
-        const players = Object.values(state.votes);
-        const allVoted = players.length > 0 && players.every(p => p.value !== null);
+    <footer class="hand-bar">
+        <div class="hand-side">
+            <button id="btn-emoji" class="emoji-btn" type="button" aria-haspopup="true" aria-expanded="false"
+                    aria-controls="emoji-pop" aria-label="Elegir emoji para lanzar">
+                <span id="emoji-current">🍅</span>
+            </button>
+            <div id="emoji-pop" class="emoji-pop" hidden>
+                <p class="emoji-hint">Tocá la carta de alguien para tirarle uno.</p>
+                <div class="emoji-grid" id="emoji-grid"></div>
+                <button id="btn-emoji-more" class="link-btn" type="button">Más emojis</button>
+                <div id="emoji-picker-slot"></div>
+            </div>
+        </div>
 
-        if (state.visible) {
-            btn.innerHTML = 'SIGUIENTE<br>TAREA';
-            btn.className = 'state-next';
-        } else {
-            btn.innerHTML = 'REVELAR<br>CARTAS';
-            btn.className = allVoted ? 'state-ready' : 'state-waiting';
-        }
+        <div class="hand" id="hand" role="group" aria-label="Tu mano: elegí una carta"></div>
 
-        const nums = players.filter(p => typeof p.value === 'number').map(p => p.value);
-        const avgEl = document.getElementById('avg');
-        avgEl.innerText = (state.visible && nums.length)
-            ? (nums.reduce((a,b) => a+b, 0) / nums.length).toFixed(1)
-            : '';
-    }
+        <div class="hand-side hand-side-end">
+            <button id="btn-role" class="role-toggle" type="button" aria-pressed="false">Observar</button>
+        </div>
+    </footer>
+</div>
 
-    function renderVoteCounter(state) {
-        const players = Object.values(state.votes);
-        const voted = players.filter(p => p.value !== null).length;
-        document.getElementById('voteText').innerText = `${voted} / ${players.length}`;
-        const dotsEl = document.getElementById('voteDots');
-        dotsEl.innerHTML = '';
-        players.forEach(p => {
-            const dot = document.createElement('div');
-            dot.className = 'vote-dot' + (p.value !== null ? ' voted' : '');
-            dotsEl.appendChild(dot);
-        });
-    }
+<!-- ── DIÁLOGO: HISTORIAL ────────────────────────────────────────────── -->
+<dialog id="dlg-history" class="sheet" aria-labelledby="dlg-history-title">
+    <div class="sheet-head">
+        <h2 id="dlg-history-title">Historial de la sesión</h2>
+        <button class="icon-close" type="button" data-close aria-label="Cerrar">×</button>
+    </div>
+    <div id="history-list" class="history-list"></div>
+    <div class="sheet-foot">
+        <button id="btn-export-csv" class="btn btn-ghost" type="button">Descargar CSV</button>
+        <button id="btn-export-md" class="btn btn-ghost" type="button">Copiar como Markdown</button>
+    </div>
+</dialog>
 
-    function syncDeckHighlight(state) {
-        if (!state.visible) {
-            const me = Object.values(state.votes).find(p => p.name === myName);
-            if (!me || me.value === null) {
-                myVote = null;
-                document.querySelectorAll('.deck-card').forEach(c => c.classList.remove('selected'));
-            }
-        }
-    }
+<!-- ── DIÁLOGO: SALA ─────────────────────────────────────────────────── -->
+<dialog id="dlg-settings" class="sheet" aria-labelledby="dlg-settings-title">
+    <div class="sheet-head">
+        <h2 id="dlg-settings-title">Sala</h2>
+        <button class="icon-close" type="button" data-close aria-label="Cerrar">×</button>
+    </div>
 
-    // ── BUILD DECK ────────────────────────────────────────────────────────
-    const DECK_VALUES = [0, 1, 2, 3, 5, 8, 13, 21, '?', '☕'];
-    DECK_VALUES.forEach(v => {
-        const btn = document.createElement('button');
-        btn.className = 'deck-card';
-        btn.dataset.value = v;
-        btn.innerText = v;
-        btn.onclick = () => {
-            if (lastState.visible) return;
-            socket.emit('cast_vote', { value: v });
-            myVote = v;
-            document.querySelectorAll('.deck-card').forEach(c => c.classList.remove('selected'));
-            btn.classList.add('selected');
-        };
-        document.getElementById('deck').appendChild(btn);
-    });
+    <p id="settings-readonly" class="sheet-note" hidden>Solo quien modera puede cambiar estas opciones.</p>
 
-    // ── MAIN ACTION ───────────────────────────────────────────────────────
-    function mainAction() {
-        if (btnLocked) return;
-        if (!lastState.visible) {
-            const allVoted = Object.values(lastState.votes || {}).every(p => p.value !== null);
-            if (!allVoted) {
-                const btn = document.getElementById('mainBtn');
-                btn.classList.add('shake');
-                setTimeout(() => btn.classList.remove('shake'), 400);
-                showToast('Faltan compañeros por votar', 'warn');
-                return;
-            }
-            lockBtn(1800);
-            socket.emit('reveal_votes');
-        } else {
-            lockBtn(2000);
-            const t = document.getElementById('taskInput').value || 'Tarea';
-            const next = t.replace(/\d+$/, n => parseInt(n) + 1);
-            socket.emit('next_round', { taskName: next === t ? t + ' 2' : next });
-            showToast('Nueva ronda iniciada');
-        }
-    }
+    <form id="settings-form" class="settings">
+        <fieldset>
+            <legend>Mazo</legend>
+            <div id="deck-options" class="deck-options"></div>
+        </fieldset>
 
-    function lockBtn(ms) {
-        btnLocked = true;
-        document.getElementById('mainBtn').className = 'state-locked';
-        setTimeout(() => {
-            btnLocked = false;
-            renderCenter(lastState);
-        }, ms);
-    }
+        <fieldset>
+            <legend>Ronda</legend>
+            <label class="switch"><input type="checkbox" name="autoReveal"><span>Revelar solo cuando todos votaron</span></label>
+            <label class="switch"><input type="checkbox" name="moderatorOnly"><span>Solo quien modera revela y pasa de ronda</span></label>
+            <label class="switch"><input type="checkbox" name="emojis"><span>Permitir lanzar emojis</span></label>
+            <label class="field field-inline">
+                <span class="field-label">Duración del reloj</span>
+                <select name="timerSec">
+                    <option value="30">30 segundos</option>
+                    <option value="60">1 minuto</option>
+                    <option value="120">2 minutos</option>
+                    <option value="180">3 minutos</option>
+                    <option value="300">5 minutos</option>
+                </select>
+            </label>
+        </fieldset>
+    </form>
 
-    // ── EMOJI ─────────────────────────────────────────────────────────────
-    // Grid-level delegation so pointer-events on cards work correctly
-    document.getElementById('grid').addEventListener('click', (e) => {
-        const card = e.target.closest('[data-playerid]');
-        if (!card) return;
-        const toId = card.dataset.playerid;
-        if (toId === socket.id) return; // don't throw at yourself
-        socket.emit('send_emoji', { toSocketId: toId, emoji: selectedEmoji, fromPos: { x: e.clientX, y: e.clientY } });
-    });
+    <section class="people">
+        <h3>Personas</h3>
+        <ul id="people-list" class="people-list"></ul>
+    </section>
 
-    function selectEmoji(emoji, el) {
-        selectedEmoji = emoji;
-        document.querySelectorAll('.emoji-btn').forEach(b => b.classList.remove('active-emoji'));
-        if (el) el.classList.add('active-emoji');
-    }
+    <div class="sheet-foot">
+        <button id="btn-leave" class="btn btn-danger" type="button">Salir de la sala</button>
+    </div>
+</dialog>
 
-    function toggleEmojiPicker() {
-        const c = document.getElementById('emoji-picker-container');
-        c.style.display = c.style.display === 'block' ? 'none' : 'block';
-    }
-
-    document.addEventListener('click', (e) => {
-        const picker = document.getElementById('emoji-picker-container');
-        const strip = document.getElementById('emojiStrip');
-        if (picker.style.display === 'block' && !picker.contains(e.target) && !strip.contains(e.target)) {
-            picker.style.display = 'none';
-        }
-    });
-
-    document.querySelector('emoji-picker').addEventListener('emoji-click', e => {
-        selectedEmoji = e.detail.unicode;
-        document.getElementById('emoji-picker-container').style.display = 'none';
-        document.querySelectorAll('.emoji-btn').forEach(b => b.classList.remove('active-emoji'));
-    });
-
-    function sendEmoji(toId, e) {
-        socket.emit('send_emoji', { toSocketId: toId, emoji: selectedEmoji, fromPos: { x: e.clientX, y: e.clientY } });
-    }
-
-    socket.on('animate_emoji', ({ toSocketId, fromPos, emoji }) => {
-        const target = document.getElementById(`p-${toSocketId}`);
-        if (!target) return;
-        const rect = target.getBoundingClientRect();
-        const p = document.createElement('div');
-        p.className = 'projectile'; p.innerText = emoji;
-        p.style.left = fromPos.x + 'px'; p.style.top = fromPos.y + 'px';
-        document.body.appendChild(p);
-        setTimeout(() => { p.style.left = (rect.left + 14) + 'px'; p.style.top = (rect.top + 14) + 'px'; }, 20);
-        setTimeout(() => {
-            p.classList.add('rebound');
-            if (toSocketId === socket.id) {
-                attackHits++;
-                if (attackHits >= 10) {
-                    document.body.classList.add('buzz');
-                    setTimeout(() => { document.body.classList.remove('buzz'); attackHits = 0; }, 800);
-                }
-            }
-        }, 400);
-        setTimeout(() => p.remove(), 1200);
-    });
-
-    // ── UTILS ─────────────────────────────────────────────────────────────
-    function copyLink() {
-        const url = `${window.location.origin}?room=${currentRoomId}`;
-        navigator.clipboard.writeText(url);
-        showToast('Enlace de sala copiado 🔗', 'success');
-    }
-
-    function updateTask() {
-        socket.emit('update_task', { taskName: document.getElementById('taskInput').value });
-    }
-
-    function exportCSV() {
-        if (!lastState.history?.length) { showToast('No hay historial aún', 'warn'); return; }
-        const esc = v => `"${String(v ?? '').replace(/"/g, '""')}"`;
-        let csv = 'Ronda,Tarea,Jugador,Voto\n';
-        lastState.history.forEach((r, i) => {
-            Object.entries(r.results).forEach(([name, vote]) => {
-                csv += `${i + 1},${esc(r.task)},${esc(name)},${esc(vote)}\n`;
-            });
-        });
-        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-        const a = Object.assign(document.createElement('a'), { href: URL.createObjectURL(blob), download: `scrum-poker-${currentRoomId}.csv` });
-        a.click(); URL.revokeObjectURL(a.href);
-        showToast('CSV descargado ✓', 'success');
-    }
-
-    function showToast(msg, type = 'info') {
-        const t = document.createElement('div');
-        t.className = `toast ${type}`;
-        t.innerText = msg;
-        document.getElementById('toast-container').appendChild(t);
-        setTimeout(() => { t.style.opacity = '0'; setTimeout(() => t.remove(), 400); }, 3000);
-    }
-</script>
 </body>
 </html>
