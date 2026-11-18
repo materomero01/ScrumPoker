@@ -506,7 +506,6 @@ button:disabled { cursor: not-allowed; }
     font-size: 0.7rem; font-weight: 700;
     white-space: nowrap;
 }
-.seat.is-buzzed { animation: buzz 0.08s 8 alternate; }
 
 /* ── Mano (mazo) ─────────────────────────────────────────────────────── */
 
@@ -766,7 +765,6 @@ body.is-offline .task { pointer-events: none; opacity: 0.55; }
 @keyframes grow { from { transform: scaleY(0); } }
 @keyframes toast-in { from { opacity: 0; transform: translateY(-8px); } }
 @keyframes sheet-in { from { opacity: 0; transform: translateY(12px); } }
-@keyframes buzz { from { transform: translate(-52%, -50%); } to { transform: translate(-48%, -50%); } }
 @keyframes screen-buzz { from { transform: translate(-3px, -2px); } to { transform: translate(3px, 2px); } }
 body.is-buzzing .game { animation: screen-buzz 0.07s 12 alternate; }
 

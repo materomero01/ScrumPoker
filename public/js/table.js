@@ -186,50 +186,105 @@ export function renderCenter(state, timerText) {
 }
 
 // ── Emojis voladores ────────────────────────────────────────────────────
+//
+// El emoji viaja en una parábola (Bézier cuadrática muestreada, sin esquinas),
+// choca contra el borde de la carta del destinatario, la empuja en la dirección
+// del golpe y rebota hacia atrás cayendo con gravedad.
+
+const SIZE = 28;
+const at = (x, y, rot = 0, sx = 1, sy = sx) =>
+    `translate(${(x - SIZE / 2).toFixed(1)}px, ${(y - SIZE / 2).toFixed(1)}px) rotate(${rot.toFixed(1)}deg) scale(${sx}, ${sy})`;
 
 function centerOf(el) {
     const r = el.getBoundingClientRect();
-    return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+    return { x: r.left + r.width / 2, y: r.top + r.height / 2, w: r.width, h: r.height };
 }
 
-/** Lanza un emoji de un asiento a otro. Devuelve una promesa que resuelve al impactar. */
+function bezier(p0, p1, p2, t) {
+    const u = 1 - t;
+    return { x: u * u * p0.x + 2 * u * t * p1.x + t * t * p2.x, y: u * u * p0.y + 2 * u * t * p1.y + t * t * p2.y };
+}
+
+/** Punto del borde del rectángulo de la carta por donde entra un proyectil que viene en dirección `dir`. */
+function impactPoint(card, dir) {
+    const hw = card.w / 2 + SIZE * 0.3;
+    const hh = card.h / 2 + SIZE * 0.3;
+    const k = Math.min(hw / Math.abs(dir.x || 1e-6), hh / Math.abs(dir.y || 1e-6));
+    return { x: card.x - dir.x * k, y: card.y - dir.y * k };
+}
+
+function normalize(v) {
+    const len = Math.hypot(v.x, v.y) || 1;
+    return { x: v.x / len, y: v.y / len };
+}
+
+/** Lanza un emoji de un asiento a otro. Resuelve cuando impacta. */
 export function throwEmoji(fromId, toId, emoji) {
     const target = seatEls.get(toId);
     if (!target) return Promise.resolve(false);
+    const targetCard = target.querySelector('.seat-card');
     const source = seatEls.get(fromId);
-    const to = centerOf(target.querySelector('.seat-card'));
-    const from = source ? centerOf(source.querySelector('.seat-card')) : { x: to.x, y: window.innerHeight };
+    const card = centerOf(targetCard);
+    const from = source ? centerOf(source.querySelector('.seat-card')) : { x: card.x, y: window.innerHeight + SIZE };
 
     const p = h('span', { class: 'projectile', 'aria-hidden': 'true', text: emoji });
     document.body.append(p);
-    const size = 28;
-    const at = (x, y, extra = '') => `translate(${x - size / 2}px, ${y - size / 2}px) ${extra}`;
 
     if (prefersReducedMotion()) {
-        p.style.transform = at(to.x, to.y - 40);
+        p.style.transform = at(card.x, card.y - card.h / 2 - SIZE / 2);
         setTimeout(() => p.remove(), 700);
         return Promise.resolve(true);
     }
 
-    const midX = (from.x + to.x) / 2;
-    const midY = Math.min(from.y, to.y) - 80;
-    const flight = p.animate([
-        { transform: at(from.x, from.y, 'rotate(0deg) scale(0.8)') },
-        { transform: at(midX, midY, 'rotate(160deg) scale(1.15)'), offset: 0.5 },
-        { transform: at(to.x, to.y, 'rotate(320deg) scale(1)') },
-    ], { duration: 520, easing: 'cubic-bezier(.3,.1,.5,1)' });
+    // Curva: el punto de control se desplaza perpendicular a la línea de tiro
+    // (hacia "arriba" de la pantalla cuando se puede), así el arco nunca pasa
+    // por encima del destinatario y le pega desde atrás.
+    const dist = Math.hypot(card.x - from.x, card.y - from.y);
+    let n = normalize({ x: card.y - from.y, y: -(card.x - from.x) });
+    if (n.y > 0 || (n.y === 0 && n.x > 0)) n = { x: -n.x, y: -n.y };
+    const lift = Math.min(130, 30 + dist * 0.22);
+    const ctrl = { x: (from.x + card.x) / 2 + n.x * lift, y: (from.y + card.y) / 2 + n.y * lift };
+
+    // Dirección de llegada = tangente final de la curva (ctrl -> destino)
+    const dir = normalize({ x: card.x - ctrl.x, y: card.y - ctrl.y });
+    const hit = impactPoint(card, dir);
+
+    const spin = (dir.x >= 0 ? 1 : -1) * 300;
+    const STEPS = 28;
+    const flightFrames = [];
+    for (let i = 0; i <= STEPS; i++) {
+        const t = i / STEPS;
+        const te = t * t * (1.6 - 0.6 * t); // acelera levemente al caer
+        const q = bezier(from, ctrl, hit, te);
+        flightFrames.push({ transform: at(q.x, q.y, spin * te, 0.85 + 0.15 * te) });
+    }
+    const duration = Math.min(700, 360 + dist * 0.4);
+    const flight = p.animate(flightFrames, { duration, easing: 'linear', fill: 'forwards' });
 
     return flight.finished.then(() => {
-        target.classList.remove('is-buzzed');
-        void target.offsetWidth;
-        target.classList.add('is-buzzed');
-        const dir = Math.random() > 0.5 ? 1 : -1;
-        const fall = p.animate([
-            { transform: at(to.x, to.y, 'rotate(320deg)'), opacity: 1 },
-            { transform: at(to.x + dir * 24, to.y - 20, 'rotate(400deg)'), opacity: 1, offset: 0.35 },
-            { transform: at(to.x + dir * 50, to.y + 70, 'rotate(560deg)'), opacity: 0 },
-        ], { duration: 650, easing: 'ease-in', fill: 'forwards' });
-        fall.finished.then(() => p.remove());
+        // La carta recibe el golpe en la dirección del proyectil
+        const push = { x: dir.x * 7, y: dir.y * 7 };
+        const tilt = dir.x * 9;
+        targetCard.animate([
+            { transform: 'translate(0, 0) rotate(0deg)' },
+            { transform: `translate(${push.x}px, ${push.y}px) rotate(${tilt}deg)`, offset: 0.25 },
+            { transform: `translate(${-push.x * 0.35}px, ${-push.y * 0.35}px) rotate(${-tilt * 0.35}deg)`, offset: 0.6 },
+            { transform: 'translate(0, 0) rotate(0deg)' },
+        ], { duration: 380, easing: 'ease-out' });
+
+        // Rebote: sale hacia atrás (reflejo de la dirección) con un poco de impulso hacia arriba y cae con gravedad
+        const v = { x: -dir.x * 150 + (Math.random() - 0.5) * 50, y: -dir.y * 150 - 90 };
+        const g = 900;
+        const T = 0.75;
+        const bounceFrames = [{ transform: at(hit.x, hit.y, spin, 1.25, 0.75), opacity: 1 }];
+        for (let i = 1; i <= 20; i++) {
+            const t = (i / 20) * T;
+            const x = hit.x + v.x * t;
+            const y = hit.y + v.y * t + 0.5 * g * t * t;
+            bounceFrames.push({ transform: at(x, y, spin + spin * 0.8 * (t / T)), opacity: i < 12 ? 1 : 1 - (i - 12) / 8 });
+        }
+        const bounce = p.animate(bounceFrames, { duration: T * 1000, easing: 'linear', fill: 'forwards' });
+        bounce.finished.then(() => p.remove());
         return true;
     });
 }
