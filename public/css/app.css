@@ -236,6 +236,7 @@ button:disabled { cursor: not-allowed; }
 .game {
     display: grid;
     grid-template-rows: auto 1fr auto;
+    grid-template-columns: minmax(0, 1fr);
 }
 
 .topbar {
@@ -247,7 +248,7 @@ button:disabled { cursor: not-allowed; }
     border-bottom: 1px solid var(--line);
     background: rgba(10, 31, 26, 0.6);
 }
-.topbar-id { display: flex; align-items: center; gap: 0.75rem; }
+.topbar-id { display: flex; align-items: center; gap: 0.75rem; min-width: 0; }
 .brand {
     display: grid; place-items: center;
     width: 34px; height: 46px;
@@ -505,7 +506,6 @@ button:disabled { cursor: not-allowed; }
     font-size: 0.7rem; font-weight: 700;
     white-space: nowrap;
 }
-.seat.is-buzzed { animation: buzz 0.08s 8 alternate; }
 
 /* ── Mano (mazo) ─────────────────────────────────────────────────────── */
 
@@ -765,7 +765,6 @@ body.is-offline .task { pointer-events: none; opacity: 0.55; }
 @keyframes grow { from { transform: scaleY(0); } }
 @keyframes toast-in { from { opacity: 0; transform: translateY(-8px); } }
 @keyframes sheet-in { from { opacity: 0; transform: translateY(12px); } }
-@keyframes buzz { from { transform: translate(-52%, -50%); } to { transform: translate(-48%, -50%); } }
 @keyframes screen-buzz { from { transform: translate(-3px, -2px); } to { transform: translate(3px, 2px); } }
 body.is-buzzing .game { animation: screen-buzz 0.07s 12 alternate; }
 
@@ -817,6 +816,13 @@ body.is-buzzing .game { animation: screen-buzz 0.07s 12 alternate; }
     .card { width: 50px; height: 72px; font-size: 1.45rem; margin: 0 -2px; }
     .emoji-btn { width: 42px; height: 42px; font-size: 1.25rem; }
     .emoji-pop { width: min(280px, calc(100vw - 1.5rem)); }
+}
+
+@media (max-width: 380px) {
+    .brand, .room-chip-label { display: none; }
+    .topbar { padding-inline: 0.75rem; }
+    .topbar-actions { gap: 0; }
+    .tool { padding: 0.4rem 0.45rem; }
 }
 
 @media (prefers-reduced-motion: reduce) {

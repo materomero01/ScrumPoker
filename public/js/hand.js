@@ -19,11 +19,12 @@ export function renderHand(state, me, myVote, { onPick }) {
                 class: `card${isText ? ' is-text' : ''}${isWild ? ' is-wild' : ''}`,
                 type: 'button',
                 'aria-pressed': 'false',
-                'aria-label': value === '☕' ? 'Café: necesito una pausa' : value === '?' ? 'No sé' : `Votar ${label}`,
                 dataset: { index: String(i) },
             },
             h('span', { class: 'corner tl', 'aria-hidden': 'true', text: label }),
-            h('span', { 'aria-hidden': 'true', text: label }),
+            isWild ? null : h('span', { class: 'visually-hidden', text: 'Votar ' }),
+            h('span', { text: label }),
+            isWild ? h('span', { class: 'visually-hidden', text: value === '☕' ? ' (necesito una pausa)' : ' (no sé)' }) : null,
             h('span', { class: 'corner br', 'aria-hidden': 'true', text: label }),
             );
             btn.style.setProperty('--tilt', `${tilt}deg`);
