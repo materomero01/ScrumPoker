@@ -19,6 +19,7 @@ function createSeat(player, onThrow) {
         h('span', { class: 'slot', 'aria-hidden': 'true' }),
         h('span', { class: 'back', 'aria-hidden': 'true' }),
         h('span', { class: 'face', 'aria-hidden': 'true' }),
+        h('span', { class: 'visually-hidden seat-desc' }),
     );
     card.addEventListener('click', () => onThrow(player.id, card));
     const li = h('li', { class: 'seat is-entering', dataset: { id: player.id } },
@@ -98,7 +99,7 @@ export function renderSeats(state, me, { onThrow }) {
 
         const btn = li.querySelector('.seat-card');
         btn.disabled = isMe || !state.settings.emojis;
-        btn.setAttribute('aria-label', describeSeat(p, { isMe, isMod, revealed: state.revealed, emojisOn: state.settings.emojis }));
+        setText(li.querySelector('.seat-desc'), describeSeat(p, { isMe, isMod, revealed: state.revealed, emojisOn: state.settings.emojis }));
     });
 
     for (const [id, li] of seatEls) {

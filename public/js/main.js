@@ -46,6 +46,7 @@ function notice({ title, body, primary, onPrimary, secondary, onSecondary }) {
 }
 
 function backToLobby({ keepInvite = false } = {}) {
+    net.rememberSeat(null);
     session.roomId = null;
     session.state = null;
     session.me = null;
@@ -143,6 +144,7 @@ async function enterRoom(roomId, name, role) {
         throw new Error(res.error);
     }
     net.saveName(name);
+    net.rememberSeat({ roomId, name, role: res.you.role });
     session.roomId = roomId;
     session.name = name;
     session.role = res.you.role;
@@ -173,6 +175,7 @@ async function rejoin() {
 }
 
 function roomGone(roomId) {
+    net.rememberSeat(null);
     session.roomId = null;
     net.setRoomInURL(null);
     notice({
@@ -184,6 +187,7 @@ function roomGone(roomId) {
 }
 
 function kicked() {
+    net.rememberSeat(null);
     session.roomId = null;
     net.setRoomInURL(null);
     notice({
@@ -432,10 +436,17 @@ function wire() {
         document.body.classList.remove('is-offline');
         rejoin();
     });
-    socket.on('disconnect', () => {
-        if (!session.roomId) return;
-        $('#offline-banner').hidden = false;
-        document.body.classList.add('is-offline');
+    const setOffline = offline => {
+        if (offline && !session.roomId) return;
+        $('#offline-banner').hidden = !offline;
+        document.body.classList.toggle('is-offline', offline);
+    };
+    socket.on('disconnect', () => setOffline(true));
+    // El navegador avisa al instante; el ping de Socket.IO puede tardar ~30 s en notarlo
+    window.addEventListener('offline', () => setOffline(true));
+    window.addEventListener('online', () => {
+        if (socket.connected) setOffline(false);
+        else socket.connect();
     });
     socket.on('state', state => { if (session.roomId && state.id === session.roomId) applyState(state); });
     socket.on('emoji', onEmoji);
@@ -502,6 +513,16 @@ async function init() {
 
     const roomId = net.roomFromURL();
     if (new URLSearchParams(location.search).has('room') && !roomId) net.setRoomInURL(null);
+    const seat = net.rememberedSeat();
+    if (roomId && seat?.roomId === roomId) {
+        // Recarga de una pestaña que ya estaba en la sala: volver directo a la mesa
+        try {
+            await enterRoom(roomId, seat.name, seat.role === 'observer' ? 'observer' : 'player');
+            return;
+        } catch {
+            net.rememberSeat(null);
+        }
+    }
     if (roomId) {
         try {
             if (!await net.roomExists(roomId)) return roomGone(roomId);

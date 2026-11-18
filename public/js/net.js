@@ -33,6 +33,24 @@ export function saveName(name) {
     try { storage('localStorage')?.setItem(NAME_KEY, name); } catch { /* sin storage */ }
 }
 
+const SEAT_KEY = 'scrum-poker:seat';
+
+/** Recuerda en qué sala estaba esta pestaña para volver sola tras recargar. */
+export function rememberSeat(seat) {
+    try {
+        const s = storage('sessionStorage');
+        if (seat) s?.setItem(SEAT_KEY, JSON.stringify(seat));
+        else s?.removeItem(SEAT_KEY);
+    } catch { /* sin storage */ }
+}
+
+export function rememberedSeat() {
+    try {
+        const seat = JSON.parse(storage('sessionStorage')?.getItem(SEAT_KEY) || 'null');
+        return seat && typeof seat.roomId === 'string' && typeof seat.name === 'string' ? seat : null;
+    } catch { return null; }
+}
+
 export function connect() {
     return io({ reconnectionDelay: 800, reconnectionDelayMax: 5000, transports: ['websocket', 'polling'] });
 }
